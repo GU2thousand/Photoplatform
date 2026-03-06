@@ -1,0 +1,8 @@
+backend/.gradle/
+backend/build/
+backend/data/
+frontend/node_modules/
+frontend/dist/
+frontend/.npm-cache/
+backend.zip
+Users/
