@@ -6,3 +6,4 @@ frontend/dist/
 frontend/.npm-cache/
 backend.zip
 Users/
+.env

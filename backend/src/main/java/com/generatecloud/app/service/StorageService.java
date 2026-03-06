@@ -1,24 +1,22 @@
 package com.generatecloud.app.service;
 
 import com.generatecloud.app.exception.BadRequestException;
-import jakarta.annotation.PostConstruct;
+import com.generatecloud.app.storage.ObjectStorage;
+import com.generatecloud.app.storage.StoredObject;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,38 +24,24 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class StorageService {
 
-    @Value("${app.storage.root}")
-    private String storageRoot;
+    private static final String THUMBNAIL_CONTENT_TYPE = "image/png";
 
-    private Path originalsDir;
-    private Path thumbnailsDir;
-
-    @PostConstruct
-    void init() {
-        try {
-            originalsDir = Path.of(storageRoot, "originals");
-            thumbnailsDir = Path.of(storageRoot, "thumbnails");
-            Files.createDirectories(originalsDir);
-            Files.createDirectories(thumbnailsDir);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to initialize storage directories", exception);
-        }
-    }
+    private final ObjectStorage objectStorage;
 
     public StoredImage store(MultipartFile file) {
         if (file.isEmpty() || file.getContentType() == null || !file.getContentType().startsWith("image/")) {
             throw new BadRequestException("Please upload a valid image");
         }
 
-        String extension = extension(file.getOriginalFilename());
-        String storedName = UUID.randomUUID() + extension;
-        String thumbnailName = UUID.randomUUID() + ".png";
-        Path originalPath = originalsDir.resolve(storedName);
-        Path thumbnailPath = thumbnailsDir.resolve(thumbnailName);
+        try {
+            byte[] originalBytes = file.getBytes();
+            String storedName = UUID.randomUUID() + extension(file.getOriginalFilename());
+            String thumbnailName = UUID.randomUUID() + ".png";
+            byte[] thumbnailBytes = generateThumbnail(originalBytes);
 
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, originalPath, StandardCopyOption.REPLACE_EXISTING);
-            generateThumbnail(originalPath, thumbnailPath);
+            objectStorage.putObject(originalKey(storedName), originalBytes, file.getContentType());
+            objectStorage.putObject(thumbnailKey(thumbnailName), thumbnailBytes, THUMBNAIL_CONTENT_TYPE);
+
             return new StoredImage(file.getOriginalFilename(), storedName, thumbnailName, file.getSize());
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to store uploaded image", exception);
@@ -65,29 +49,38 @@ public class StorageService {
     }
 
     public StoredImage generateDemoImage(String title, Color start, Color end) {
-        String storedName = UUID.randomUUID() + ".png";
-        String thumbnailName = UUID.randomUUID() + ".png";
-        Path originalPath = originalsDir.resolve(storedName);
-        Path thumbnailPath = thumbnailsDir.resolve(thumbnailName);
-
         try {
-            writeGeneratedImage(title, start, end, 1600, 1000, originalPath);
-            generateThumbnail(originalPath, thumbnailPath);
-            return new StoredImage(title + ".png", storedName, thumbnailName, Files.size(originalPath));
+            byte[] originalBytes = writeGeneratedImage(title, start, end, 1600, 1000);
+            String storedName = UUID.randomUUID() + ".png";
+            String thumbnailName = UUID.randomUUID() + ".png";
+            byte[] thumbnailBytes = generateThumbnail(originalBytes);
+
+            objectStorage.putObject(originalKey(storedName), originalBytes, THUMBNAIL_CONTENT_TYPE);
+            objectStorage.putObject(thumbnailKey(thumbnailName), thumbnailBytes, THUMBNAIL_CONTENT_TYPE);
+
+            return new StoredImage(title + ".png", storedName, thumbnailName, originalBytes.length);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to create demo image", exception);
         }
     }
 
-    public Path resolveOriginal(String storedName) {
-        return originalsDir.resolve(storedName);
+    public StoredObject loadOriginal(String storedName) {
+        return objectStorage.getObject(originalKey(storedName));
     }
 
-    public Path resolveThumbnail(String thumbnailName) {
-        return thumbnailsDir.resolve(thumbnailName);
+    public StoredObject loadThumbnail(String thumbnailName) {
+        return objectStorage.getObject(thumbnailKey(thumbnailName));
     }
 
-    private void writeGeneratedImage(String title, Color start, Color end, int width, int height, Path target)
+    private String originalKey(String storedName) {
+        return "originals/" + storedName;
+    }
+
+    private String thumbnailKey(String thumbnailName) {
+        return "thumbnails/" + thumbnailName;
+    }
+
+    private byte[] writeGeneratedImage(String title, Color start, Color end, int width, int height)
             throws IOException {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
@@ -102,11 +95,14 @@ public class StorageService {
         graphics.setFont(new Font("SansSerif", Font.PLAIN, 26));
         graphics.drawString("Generate Cloud Demo Collection", 124, height - 124);
         graphics.dispose();
-        ImageIO.write(image, "png", target.toFile());
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", outputStream);
+        return outputStream.toByteArray();
     }
 
-    private void generateThumbnail(Path source, Path target) throws IOException {
-        BufferedImage original = ImageIO.read(source.toFile());
+    private byte[] generateThumbnail(byte[] sourceBytes) throws IOException {
+        BufferedImage original = ImageIO.read(new ByteArrayInputStream(sourceBytes));
         if (original == null) {
             throw new BadRequestException("Unsupported image type");
         }
@@ -118,7 +114,10 @@ public class StorageService {
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         graphics.drawImage(original, 0, 0, width, height, null);
         graphics.dispose();
-        ImageIO.write(thumbnail, "png", target.toFile());
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageIO.write(thumbnail, "png", outputStream);
+        return outputStream.toByteArray();
     }
 
     private String extension(String originalFileName) {

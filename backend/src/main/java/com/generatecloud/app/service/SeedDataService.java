@@ -14,11 +14,13 @@ import com.generatecloud.app.repository.TeamSpaceRepository;
 import com.generatecloud.app.repository.UserAccountRepository;
 import java.awt.Color;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class SeedDataService implements CommandLineRunner {
 

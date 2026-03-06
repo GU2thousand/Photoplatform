@@ -9,16 +9,30 @@ Generate Cloud is a runnable MVP of the "Intelligent Collaborative Cloud Image P
 - Personal image space with private and public uploads
 - Team collaboration space with shared image libraries, member invites, and realtime activity
 - Admin moderation console with pending review queue and platform metrics
-- Local image storage with generated thumbnails and seeded demo data
+- PostgreSQL persistence and S3-compatible object storage with generated thumbnails and seeded demo data
 
 ## Stack
 
 - Frontend: Vue 3 + TypeScript + Vite
 - Backend: Spring Boot 3 + Spring Security + Spring Data JPA + WebSocket
-- Database: H2 file database for local development
-- Storage: local filesystem storage under `backend/data/storage`
+- Database: PostgreSQL
+- Storage: S3-compatible object storage such as AWS S3, Cloudflare R2, MinIO, or Google Cloud Storage S3 interoperability
 
 ## Local run
+
+### Infrastructure
+
+```bash
+cd /Users/guerqian77/Desktop/generateCloud
+cp .env.example .env
+docker compose up -d
+```
+
+This starts:
+
+- PostgreSQL on `localhost:5432`
+- MinIO object storage on `localhost:9000`
+- MinIO console on `http://localhost:9001`
 
 ### Backend
 
@@ -39,6 +53,30 @@ npm run dev
 
 Frontend runs on [http://localhost:5173](http://localhost:5173) and proxies API and WebSocket traffic to the backend.
 
+## Configuration
+
+Backend reads these environment variables:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+- `STORAGE_PROVIDER`
+- `STORAGE_BUCKET`
+- `STORAGE_REGION`
+- `STORAGE_ENDPOINT`
+- `STORAGE_ACCESS_KEY`
+- `STORAGE_SECRET_KEY`
+- `STORAGE_PATH_STYLE_ACCESS`
+- `STORAGE_AUTO_CREATE_BUCKET`
+- `STORAGE_PREFIX`
+- `APP_SEED_ENABLED`
+
+Provider notes:
+
+- AWS S3: leave `STORAGE_ENDPOINT` empty and set your S3 bucket, region, access key, and secret key.
+- Cloudflare R2: use your R2 S3 endpoint and credentials.
+- Google Cloud Storage: use S3 interoperability keys and `https://storage.googleapis.com` as the endpoint.
+
 ## Demo accounts
 
 - Admin: `admin@generatecloud.local` / `admin123`
@@ -52,10 +90,10 @@ Frontend runs on [http://localhost:5173](http://localhost:5173) and proxies API 
 - `GET /api/images/me`
 - `GET /api/teams`
 - `GET /api/admin/stats`
-- `GET /h2-console`
 
 ## Notes
 
 - Public uploads created by regular users enter `PENDING` moderation until approved by an admin.
 - Team websocket endpoint is `ws://localhost:8080/ws/teams/{teamId}?token=...`.
 - Seeded demo images are created automatically on first backend boot.
+- For local development the backend expects PostgreSQL and MinIO from `compose.yaml`.

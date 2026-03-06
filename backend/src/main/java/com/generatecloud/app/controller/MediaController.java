@@ -5,11 +5,9 @@ import com.generatecloud.app.security.AppUserPrincipal;
 import com.generatecloud.app.service.AuthService;
 import com.generatecloud.app.service.ImageService;
 import com.generatecloud.app.service.StorageService;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import com.generatecloud.app.storage.StoredObject;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -33,7 +31,7 @@ public class MediaController {
     public ResponseEntity<Resource> original(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long imageId
-    ) throws IOException {
+    ) {
         ImageAsset image = imageService.getAccessibleImage(imageId, authService.optionalUser(principal));
         return build(image, false);
     }
@@ -42,27 +40,26 @@ public class MediaController {
     public ResponseEntity<Resource> thumbnail(
             @AuthenticationPrincipal AppUserPrincipal principal,
             @PathVariable Long imageId
-    ) throws IOException {
+    ) {
         ImageAsset image = imageService.getAccessibleImage(imageId, authService.optionalUser(principal));
         return build(image, true);
     }
 
-    private ResponseEntity<Resource> build(ImageAsset image, boolean thumbnail)
-            throws IOException {
-        Path path = thumbnail
-                ? storageService.resolveThumbnail(image.getThumbnailFileName())
-                : storageService.resolveOriginal(image.getStoredFileName());
-        MediaType mediaType = resolve(path);
-        Resource resource = new FileSystemResource(path);
+    private ResponseEntity<Resource> build(ImageAsset image, boolean thumbnail) {
+        StoredObject storedObject = thumbnail
+                ? storageService.loadThumbnail(image.getThumbnailFileName())
+                : storageService.loadOriginal(image.getStoredFileName());
+        MediaType mediaType = resolve(storedObject.contentType());
+        Resource resource = new ByteArrayResource(storedObject.content());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+                .contentLength(storedObject.contentLength())
                 .contentType(mediaType)
                 .body(resource);
     }
 
-    private MediaType resolve(Path path) throws IOException {
-        String contentType = Files.probeContentType(path);
-        if (contentType == null) {
+    private MediaType resolve(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
             return MediaType.APPLICATION_OCTET_STREAM;
         }
         return MediaType.parseMediaType(contentType);
