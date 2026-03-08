@@ -4,6 +4,7 @@ import com.generatecloud.app.repository.UserAccountRepository;
 import com.generatecloud.app.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -18,6 +19,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final String MEDIA_TOKEN_COOKIE = "generate_cloud_token";
 
     private final JwtService jwtService;
     private final UserAccountRepository userAccountRepository;
@@ -63,6 +66,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return header.substring(7);
         }
 
+        String cookieToken = extractCookieToken(request);
+        if (cookieToken != null) {
+            return cookieToken;
+        }
+
         String token = request.getParameter("token");
         if (token == null || token.isBlank()) {
             return null;
@@ -71,6 +79,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String requestUri = request.getRequestURI();
         if (requestUri != null && requestUri.startsWith("/api/files/")) {
             return token;
+        }
+
+        return null;
+    }
+
+    private String extractCookieToken(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+
+        for (Cookie cookie : cookies) {
+            if (MEDIA_TOKEN_COOKIE.equals(cookie.getName()) && cookie.getValue() != null && !cookie.getValue().isBlank()) {
+                return cookie.getValue();
+            }
         }
 
         return null;

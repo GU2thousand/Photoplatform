@@ -1,4 +1,5 @@
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+const mediaTokenCookieName = 'generate_cloud_token'
 
 export async function apiRequest<T>(
   path: string,
@@ -47,6 +48,16 @@ export function buildAssetUrl(path: string, token?: string): string {
     url.searchParams.set('token', token)
   }
   return url.toString()
+}
+
+export function persistMediaToken(token: string) {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${mediaTokenCookieName}=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure}`
+}
+
+export function clearMediaToken() {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${mediaTokenCookieName}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
 }
 
 export function buildWebSocketUrl(path: string): string {

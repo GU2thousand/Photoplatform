@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { apiRequest, buildAssetUrl, buildWebSocketUrl } from './api'
+import { apiRequest, buildAssetUrl, buildWebSocketUrl, clearMediaToken, persistMediaToken } from './api'
 import type {
   AuthResponse,
   DashboardStats,
@@ -149,6 +149,7 @@ function formatDate(value: string) {
 async function restoreSession() {
   try {
     session.currentUser = await apiRequest<UserProfile>('/api/auth/me', {}, session.token)
+    persistMediaToken(session.token)
     await hydratePrivateData()
   } catch {
     clearSession(false)
@@ -227,6 +228,7 @@ async function applyAuth(response: AuthResponse) {
   session.token = response.token
   session.currentUser = response.user
   localStorage.setItem(storageKey, response.token)
+  persistMediaToken(response.token)
   registerForm.name = ''
   registerForm.email = ''
   registerForm.password = ''
@@ -239,6 +241,7 @@ function clearSession(showMessage = true) {
   session.token = ''
   session.currentUser = null
   localStorage.removeItem(storageKey)
+  clearMediaToken()
   personalImages.value = []
   teamImages.value = []
   pendingImages.value = []
