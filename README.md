@@ -1,40 +1,28 @@
 # Generate Cloud
 
-> An intelligent collaborative cloud image platform with public galleries, personal spaces, team workspaces, and admin moderation.
+> A prototype cloud image platform for public browsing, personal asset management, team collaboration, and admin moderation.
 
 Generate Cloud is a runnable MVP of the **Intelligent Collaborative Cloud Image Platform** described in `PRD.docx` and `TECH.docx`.
 
-It is designed to demonstrate a full-stack image platform with:
+It focuses on validating the core workflow of a modern image platform:
 
-- public image discovery
-- private user uploads
-- collaborative team libraries
-- realtime activity updates
-- admin moderation workflows
-- persistent storage with PostgreSQL and S3-compatible object storage
+**authentication → upload → storage → gallery display → collaboration → moderation**
 
 ---
 
-## Overview
+## Project Purpose
 
-Generate Cloud combines the experience of a modern cloud gallery with collaboration and platform governance features.
+Generate Cloud is built to explore how a cloud image platform can support both **individual users** and **collaborative teams** in a single product.
 
-### Core capabilities
+The current prototype includes:
 
-- **Public Gallery**  
-  Browse public images with keyword and tag search.
+- **Public Gallery** for browsing public images with keyword and tag search
+- **Personal Space** for managing private and public uploads
+- **Team Space** for shared image libraries, member invites, and realtime activity
+- **Admin Console** for content review and platform statistics
+- **Persistent Media Storage** using PostgreSQL and S3-compatible object storage
 
-- **Personal Space**  
-  Upload and manage private or public images in your own library.
-
-- **Team Space**  
-  Collaborate in shared image libraries, invite members, and view realtime team activity.
-
-- **Admin Console**  
-  Review pending uploads, moderate platform content, and inspect platform metrics.
-
-- **Persistent Media Storage**  
-  Store original files in S3-compatible object storage and generate thumbnails automatically.
+The current focus is on proving the **main product flow** and **system integration**, rather than shipping a production-ready platform.
 
 ---
 
@@ -56,7 +44,7 @@ Generate Cloud combines the experience of a modern cloud gallery with collaborat
 - S3-compatible object storage
 - Docker Compose
 
-### Supported storage providers
+### Supported Storage Providers
 - AWS S3
 - Cloudflare R2
 - MinIO
@@ -64,12 +52,12 @@ Generate Cloud combines the experience of a modern cloud gallery with collaborat
 
 ---
 
-## Architecture
+## System Architecture
 
 ```text
 Frontend (Vue 3 + Vite)
         |
-        |  HTTP / WebSocket
+        | HTTP / WebSocket
         v
 Backend API (Spring Boot)
         |
@@ -77,5 +65,5 @@ Backend API (Spring Boot)
         |
         +--> S3-compatible Object Storage
                 |
-                +--> Original files
+                +--> Original image files
                 +--> Generated thumbnails
