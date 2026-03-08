@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { apiRequest, buildApiUrl, buildWebSocketUrl } from './api'
+import { apiRequest, buildAssetUrl, buildWebSocketUrl } from './api'
 import type {
   AuthResponse,
   DashboardStats,
@@ -603,8 +603,8 @@ function asMessage(error: unknown): string {
         </div>
 
         <div class="gallery-grid">
-          <article v-for="image in publicImages" :key="image.id" class="image-card">
-            <img :src="buildApiUrl(image.thumbnailUrl)" :alt="image.title" loading="lazy" />
+            <article v-for="image in publicImages" :key="image.id" class="image-card">
+            <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" loading="lazy" />
             <div class="image-card__body">
               <div class="image-card__meta">
                 <span>{{ image.category }}</span>
@@ -617,7 +617,12 @@ function asMessage(error: unknown): string {
               </div>
               <div class="image-card__footer">
                 <span>{{ image.uploader.name }}</span>
-                <a class="inline-link" :href="buildApiUrl(image.imageUrl)" target="_blank" rel="noreferrer">
+                <a
+                  class="inline-link"
+                  :href="buildAssetUrl(image.imageUrl, session.token || undefined)"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Open original
                 </a>
               </div>
@@ -697,7 +702,7 @@ function asMessage(error: unknown): string {
 
           <div class="stack-list">
             <article v-for="image in personalImages" :key="image.id" class="library-row">
-              <img :src="buildApiUrl(image.thumbnailUrl)" :alt="image.title" />
+              <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
               <div>
                 <div class="library-row__meta">
                   <span class="tag">{{ image.visibility }}</span>
@@ -767,6 +772,10 @@ function asMessage(error: unknown): string {
               <div class="eyebrow">Active Team</div>
               <h2>{{ activeTeam.name }}</h2>
               <p>{{ activeTeam.description }}</p>
+              <p class="team-note">
+                `Atlas Studio` is the seeded demo team for the PRD's Team Collaboration Space:
+                shared library, member invites, and realtime collaboration feed.
+              </p>
             </div>
             <div class="member-pillbox">
               <span v-for="member in activeTeam.members" :key="member.id" class="tag">
@@ -777,7 +786,7 @@ function asMessage(error: unknown): string {
 
           <div class="gallery-grid gallery-grid--compact">
             <article v-for="image in teamImages" :key="image.id" class="image-card">
-              <img :src="buildApiUrl(image.thumbnailUrl)" :alt="image.title" />
+              <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
               <div class="image-card__body">
                 <div class="image-card__meta">
                   <span>{{ image.category }}</span>
@@ -832,7 +841,7 @@ function asMessage(error: unknown): string {
 
         <div class="stack-list">
           <article v-for="image in pendingImages" :key="image.id" class="review-row">
-            <img :src="buildApiUrl(image.thumbnailUrl)" :alt="image.title" />
+            <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
             <div>
               <div class="library-row__meta">
                 <span class="tag">{{ image.category }}</span>

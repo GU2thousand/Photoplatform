@@ -7,3 +7,4 @@ frontend/.npm-cache/
 backend.zip
 Users/
 .env
+.DS_Store

@@ -21,10 +21,17 @@ export async function apiRequest<T>(
   })
 
   const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
+  const contentType = response.headers.get('content-type') ?? ''
+  const payload = parsePayload(text, contentType)
 
   if (!response.ok) {
-    throw new Error(payload?.message ?? 'Request failed')
+    if (payload && typeof payload === 'object' && 'message' in payload) {
+      throw new Error(String(payload.message))
+    }
+    if (typeof payload === 'string' && payload.trim()) {
+      throw new Error(compactHtml(payload))
+    }
+    throw new Error(`Request failed (${response.status})`)
   }
 
   return payload as T
@@ -34,8 +41,30 @@ export function buildApiUrl(path: string): string {
   return `${apiBase}${path}`
 }
 
+export function buildAssetUrl(path: string, token?: string): string {
+  const url = new URL(buildApiUrl(path), window.location.origin)
+  if (token) {
+    url.searchParams.set('token', token)
+  }
+  return url.toString()
+}
+
 export function buildWebSocketUrl(path: string): string {
   const base = apiBase ? new URL(apiBase, window.location.origin) : new URL(window.location.origin)
   const protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${base.host}${path}`
+}
+
+function parsePayload(text: string, contentType: string): unknown {
+  if (!text) {
+    return null
+  }
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text)
+  }
+  return text
+}
+
+function compactHtml(value: string): string {
+  return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 }
