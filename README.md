@@ -1,4 +1,6 @@
 # Generate Cloud
+<img width="1625" height="970" alt="52101772998852_ pic" src="https://github.com/user-attachments/assets/07e34505-dbe4-4a7c-9bbb-a300c0a678e3" />
+<img width="1483" height="787" alt="52111772998874_ pic" src="https://github.com/user-attachments/assets/47cd7ce4-16b3-4cde-a52e-eacec9b0ffdc" />
 
 > A prototype cloud image platform for public browsing, personal asset management, team collaboration, and admin moderation.
 
