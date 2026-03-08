@@ -53,6 +53,27 @@ npm run dev
 
 Frontend runs on [http://localhost:5173](http://localhost:5173) and proxies API and WebSocket traffic to the backend.
 
+## Render deployment
+
+This repository now includes Render deployment files:
+
+- [render.yaml](/Users/guerqian77/Desktop/generateCloud/render.yaml) for the Blueprint
+- [backend/Dockerfile](/Users/guerqian77/Desktop/generateCloud/backend/Dockerfile) for the Spring Boot API container
+
+Recommended production wiring on Render:
+
+- `photoplatform-api`: Render Web Service
+- `photoplatform-web`: Render Static Site
+- `photoplatform-db`: Render Postgres
+- Object storage: external S3-compatible bucket such as AWS S3, Cloudflare R2, or Google Cloud Storage S3 interoperability
+
+Important deployment notes:
+
+- `VITE_API_BASE_URL` must be set to the public HTTPS URL of `photoplatform-api`.
+- `APP_CORS_ALLOWED_ORIGINS` must include the public URL of `photoplatform-web`.
+- `DATABASE_URL` from Render Postgres is supported directly, including non-JDBC Postgres URLs.
+- Storage secrets in `render.yaml` use `sync: false`, so Render will ask for them only during the initial Blueprint creation flow.
+
 ## Configuration
 
 Backend reads these environment variables:
