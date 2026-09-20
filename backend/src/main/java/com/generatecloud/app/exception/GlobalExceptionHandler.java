@@ -9,8 +9,13 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import lombok.extern.slf4j.Slf4j;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(NotFoundException.class)
@@ -28,6 +33,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException exception) {
+        return build(HttpStatus.FORBIDDEN, "You do not have access to this operation");
+    }
+
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<Map<String, Object>> handleInvalidParameter(Exception exception) {
+        return build(HttpStatus.BAD_REQUEST, "Invalid or missing request parameter");
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult().getFieldErrors().stream()
@@ -39,7 +54,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleDefault(Exception exception) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, exception.getMessage());
+        log.error("Unexpected request failure", exception);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "The request could not be completed");
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {

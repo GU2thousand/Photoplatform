@@ -1,13 +1,14 @@
 package com.generatecloud.app.websocket;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.generatecloud.app.dto.TeamEventResponse;
 import com.generatecloud.app.entity.UserAccount;
 import com.generatecloud.app.repository.TeamMemberRepository;
 import com.generatecloud.app.repository.UserAccountRepository;
 import com.generatecloud.app.service.JwtService;
-import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
@@ -15,9 +16,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PingMessage;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
@@ -34,67 +38,70 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         SessionBinding binding = bindSession(session.getUri());
-        if (binding == null || !jwtService.isTokenValid(binding.token())) {
-            session.close(CloseStatus.POLICY_VIOLATION);
+        Optional<JwtService.TokenIdentity> identity = binding == null
+                ? Optional.empty() : jwtService.readSocketTicket(binding.ticket(), binding.teamId());
+        if (identity.isEmpty()) {
+            disconnect(session, CloseStatus.POLICY_VIOLATION);
             return;
         }
-
-        Optional<UserAccount> userOptional = userAccountRepository.findByEmailIgnoreCase(jwtService.extractEmail(binding.token()));
+        JwtService.TokenIdentity authenticated = identity.get();
+        Optional<UserAccount> userOptional = userAccountRepository.findById(authenticated.userId())
+                .filter(user -> user.getEmail().equalsIgnoreCase(authenticated.email()))
+                .filter(user -> isAllowed(binding.teamId(), user));
         if (userOptional.isEmpty()) {
-            session.close(CloseStatus.POLICY_VIOLATION);
+            disconnect(session, CloseStatus.POLICY_VIOLATION);
             return;
         }
 
         UserAccount user = userOptional.get();
-        boolean allowed = user.getRole().name().equals("ADMIN")
-                || teamMemberRepository.existsByTeamIdAndUserId(binding.teamId(), user.getId());
-        if (!allowed) {
-            session.close(CloseStatus.POLICY_VIOLATION);
-            return;
-        }
-
         session.getAttributes().put("teamId", binding.teamId());
+        session.getAttributes().put("userId", user.getId());
+        session.getAttributes().put("email", user.getEmail());
         session.getAttributes().put("actorName", user.getName());
-        sessionsByTeam.computeIfAbsent(binding.teamId(), ignored -> ConcurrentHashMap.newKeySet()).add(session);
+        sessionsByTeam.compute(binding.teamId(), (teamId, sessions) -> {
+            Set<WebSocketSession> current = sessions == null ? ConcurrentHashMap.newKeySet() : sessions;
+            current.add(session);
+            return current;
+        });
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        Long teamId = (Long) session.getAttributes().get("teamId");
-        String actorName = (String) session.getAttributes().get("actorName");
-        if (teamId == null || actorName == null) {
-            session.close(CloseStatus.SERVER_ERROR);
+        if (!isAuthorized(session)) {
+            disconnect(session, CloseStatus.POLICY_VIOLATION);
             return;
         }
-
+        Long teamId = (Long) session.getAttributes().get("teamId");
+        String actorName = (String) session.getAttributes().get("actorName");
         String payload = message.getPayload().trim();
         if (payload.isBlank()) {
             return;
         }
-
         if (payload.length() > 240) {
             payload = payload.substring(0, 240);
         }
-
         broadcast(teamId, new TeamEventResponse(
-                "NOTE",
-                actorName + ": " + payload,
-                null,
-                teamId,
-                actorName,
-                Instant.now()
+                "NOTE", actorName + ": " + payload, null, teamId, actorName, Instant.now()
         ));
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        Object rawTeamId = session.getAttributes().get("teamId");
-        if (rawTeamId instanceof Long teamId) {
-            Set<WebSocketSession> teamSessions = sessionsByTeam.get(teamId);
-            if (teamSessions != null) {
-                teamSessions.remove(session);
+        removeSession(session);
+    }
+
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) {
+        disconnect(session, CloseStatus.SERVER_ERROR);
+    }
+
+    @Scheduled(fixedDelay = 20000)
+    public void heartbeat() {
+        sessionsByTeam.forEach((teamId, sessions) -> {
+            for (WebSocketSession session : sessions) {
+                send(session, new PingMessage());
             }
-        }
+        });
     }
 
     public void broadcast(Long teamId, TeamEventResponse event) {
@@ -102,48 +109,111 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
         if (teamSessions == null || teamSessions.isEmpty()) {
             return;
         }
-
+        final TextMessage message;
         try {
-            TextMessage message = new TextMessage(objectMapper.writeValueAsString(event));
-            for (WebSocketSession session : teamSessions) {
+            message = new TextMessage(objectMapper.writeValueAsString(event));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Could not serialize team event", exception);
+        }
+        for (WebSocketSession session : teamSessions) {
+            send(session, message);
+        }
+    }
+
+    private void send(WebSocketSession session, WebSocketMessage<?> message) {
+        try {
+            if (!isAuthorized(session)) {
+                disconnect(session, CloseStatus.POLICY_VIOLATION);
+                return;
+            }
+            // Standard WebSocket sessions do not support concurrent writes. Heartbeats and
+            // broadcasts share this lock so an active room cannot corrupt its connection.
+            synchronized (session) {
+                if (!session.isOpen()) {
+                    removeSession(session);
+                    return;
+                }
+                session.sendMessage(message);
+            }
+        } catch (Exception exception) {
+            // One failed client must not prevent delivery to the rest of the room.
+            disconnect(session, CloseStatus.SERVER_ERROR);
+        }
+    }
+
+    private boolean isAuthorized(WebSocketSession session) {
+        Object rawTeamId = session.getAttributes().get("teamId");
+        Object rawUserId = session.getAttributes().get("userId");
+        Object rawEmail = session.getAttributes().get("email");
+        if (!(rawTeamId instanceof Long teamId) || !(rawUserId instanceof Long userId)
+                || !(rawEmail instanceof String email)) {
+            return false;
+        }
+        // The ticket expires after the handshake; the live account and membership govern
+        // an established connection, including revoked access and deleted accounts.
+        return userAccountRepository.findById(userId)
+                .filter(user -> user.getEmail().equalsIgnoreCase(email))
+                .filter(user -> isAllowed(teamId, user))
+                .isPresent();
+    }
+
+    private boolean isAllowed(Long teamId, UserAccount user) {
+        return user.getRole().name().equals("ADMIN")
+                || teamMemberRepository.existsByTeamIdAndUserId(teamId, user.getId());
+    }
+
+    private void disconnect(WebSocketSession session, CloseStatus status) {
+        removeSession(session);
+        try {
+            synchronized (session) {
                 if (session.isOpen()) {
-                    session.sendMessage(message);
+                    session.close(status);
                 }
             }
-        } catch (IOException ignored) {
+        } catch (Exception ignored) {
+            // The dead connection has already been removed from the registry.
+        }
+    }
+
+    private void removeSession(WebSocketSession session) {
+        Object rawTeamId = session.getAttributes().get("teamId");
+        if (rawTeamId instanceof Long teamId) {
+            sessionsByTeam.computeIfPresent(teamId, (id, sessions) -> {
+                sessions.remove(session);
+                return sessions.isEmpty() ? null : sessions;
+            });
         }
     }
 
     private SessionBinding bindSession(URI uri) {
-        if (uri == null || uri.getPath() == null) {
+        if (uri == null || uri.getPath() == null || uri.getRawQuery() == null) {
             return null;
         }
-
-        String[] segments = uri.getPath().split("/");
-        if (segments.length == 0) {
-            return null;
-        }
-
-        String rawTeamId = segments[segments.length - 1];
         try {
-            long teamId = Long.parseLong(rawTeamId);
-            String query = uri.getQuery();
-            if (query == null) {
+            String[] segments = uri.getPath().split("/");
+            if (segments.length == 0) {
                 return null;
             }
-            for (String part : query.split("&")) {
+            long teamId = Long.parseLong(segments[segments.length - 1]);
+            if (teamId <= 0) {
+                return null;
+            }
+            String ticket = null;
+            for (String part : uri.getRawQuery().split("&")) {
                 String[] pair = part.split("=", 2);
-                if (pair.length == 2 && pair[0].equals("token")) {
-                    String token = java.net.URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
-                    return new SessionBinding(teamId, token);
+                if (pair.length == 2 && pair[0].equals("ticket")) {
+                    if (ticket != null) {
+                        return null;
+                    }
+                    ticket = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
                 }
             }
-            return null;
-        } catch (NumberFormatException exception) {
+            return ticket == null || ticket.isBlank() ? null : new SessionBinding(teamId, ticket);
+        } catch (IllegalArgumentException exception) {
             return null;
         }
     }
 
-    private record SessionBinding(Long teamId, String token) {
+    private record SessionBinding(Long teamId, String ticket) {
     }
 }

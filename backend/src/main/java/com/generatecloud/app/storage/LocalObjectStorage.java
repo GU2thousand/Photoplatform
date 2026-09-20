@@ -39,4 +39,13 @@ public class LocalObjectStorage implements ObjectStorage {
     private Path resolve(String key) {
         return Path.of(properties.getRoot()).resolve(properties.qualify(key));
     }
+
+    @Override
+    public void deleteObject(String key) {
+        try {
+            Files.deleteIfExists(resolve(key));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to delete object from local storage", exception);
+        }
+    }
 }

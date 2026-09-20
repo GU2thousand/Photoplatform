@@ -1,0 +1,44 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify backend behavior
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build and check types
+        working-directory: frontend
+        run: npm run build
+      - name: Verify connection lifecycle
+        working-directory: frontend
+        run: npm test
+      - name: Check dependency advisories
+        working-directory: frontend
+        run: npm audit --audit-level=high

@@ -79,6 +79,41 @@ Backend API (Spring Boot)
 
 ---
 
+## Run and verify
+
+For a local demo with PostgreSQL and MinIO, run `docker compose up -d --build`, then open [http://localhost:5173](http://localhost:5173). The Compose ports bind only to localhost. It explicitly enables seeded demo users; the backend otherwise disables seeding by default. Demo sign-in: `avery@generatecloud.local / creator123`; admin: `admin@generatecloud.local / admin123`. Do not publish these demo credentials or this Compose configuration as a production service.
+
+```bash
+# Backend behavior and security regressions (Java 17+)
+cd backend
+./gradlew test
+
+# Frontend type checking, production build, and dependency audit (Node 22+)
+cd ../frontend
+npm ci
+npm run build
+npm test
+npm audit --audit-level=high
+```
+
+CI runs these checks for pushes and pull requests. `docker compose stop` preserves database and image volumes; `docker compose down -v` deletes them.
+
+## API and reliability notes
+
+- API authentication uses `Authorization: Bearer <access-token>`. Login tokens are not accepted from image URLs or cookies. The frontend loads protected media using authenticated requests and releases its temporary object URLs on logout or component cleanup.
+- `GET /api/public/images?page=0&size=24&query=&tag=` returns `{items,page,size,totalElements,totalPages}`. Search and pagination run in the database. Image author objects contain only `id` and `name`; account email and role are not published in gallery responses.
+- Only approved public media receives public caching. Private, team, and pending media uses a private, non-storable response.
+- Team clients first request `POST /api/teams/{id}/socket-ticket` with their access token, then connect to `/ws/teams/{id}?ticket=...`. Tickets last 60 seconds and only authorize that team connection; they cannot authenticate ordinary API requests. Heartbeats and frontend reconnection maintain idle connections.
+- Image deletion schedules durable object cleanup so original and thumbnail deletion can retry after a storage outage. Database backups must include cleanup jobs, and media backups must include both object prefixes.
+
+## Deployment
+
+`render.yaml` defines the API, static frontend, and PostgreSQL services. The API enables the `prod` profile, generates its JWT secret, and disables demo seeding. Configure the S3-compatible bucket, endpoint, region, access credentials, frontend `VITE_API_BASE_URL`, and exact backend `APP_CORS_ALLOWED_ORIGINS` for your deployment. Never put storage secrets in frontend environment variables.
+
+Before public use, configure HTTPS, private bucket access, database and object-store backups with a tested restore procedure, external health monitoring at `/actuator/health`, and log retention. Provision an administrator deliberately after registering an account; do not re-enable demo seed accounts to obtain admin access. Cross-origin hosting and provider-specific backup/restore must be verified in the actual deployment environment.
+
+---
+
 <a id="简体中文"></a>
 
 # 简体中文
@@ -160,3 +195,24 @@ Generate Cloud 探索如何在同一产品中支持**个人用户**和**协作�
                 +--> 原始图片文件
                 +--> 生成的缩略图
 ```
+
+
+## 运行与验证
+
+执行 `docker compose up -d --build`，然后访问 [http://localhost:5173](http://localhost:5173)，即可在本机运行带 PostgreSQL 和 MinIO 的完整演示。Compose 端口仅绑定 localhost，并显式启用演示账号；后端默认关闭种子数据。普通账号为 `avery@generatecloud.local / creator123`，管理员为 `admin@generatecloud.local / admin123`。不要将演示账号和本机 Compose 配置直接用于公网服务。
+
+Java 17+ 下在 `backend/` 执行 `./gradlew test`；Node 22+ 下在 `frontend/` 依次执行 `npm ci`、`npm run build`、`npm test`、`npm audit --audit-level=high`。CI 在推送和 PR 上运行这些检查。`docker compose stop` 保留数据库和图片卷，`docker compose down -v` 会删除数据卷。
+
+## API 与可靠性
+
+- API 使用 `Authorization: Bearer <access-token>`。图片 URL 与 cookie 不再接受完整登录 token；前端通过认证请求加载私密媒体，并在退出或组件销毁时释放临时 object URL。
+- `GET /api/public/images?page=0&size=24&query=&tag=` 返回 `{items,page,size,totalElements,totalPages}`，搜索和分页在数据库中执行。图片作者仅包含 `id` 和 `name`，不公开邮箱及角色。
+- 仅已审核的公开图片允许公开缓存；私密、团队和待审核图片使用禁止存储的私密缓存策略。
+- 团队客户端先携带登录 token 请求 `POST /api/teams/{id}/socket-ticket`，再通过 `/ws/teams/{id}?ticket=...` 建立连接。票据有效期为 60 秒，仅允许对应团队连接，无法认证普通 API。心跳和前端重连维护空闲连接。
+- 删除图片使用持久化清理任务，在存储故障后重试删除原图与缩略图。数据库备份须包含清理任务；媒体备份须覆盖两个对象前缀。
+
+## 部署
+
+`render.yaml` 定义后端、静态前端与 PostgreSQL，启用后端 `prod` 配置、生成 JWT 密钥并关闭演示种子。根据部署填写 S3 兼容存储的 bucket、endpoint、region 和访问凭据，设置前端 `VITE_API_BASE_URL` 及后端精确的 `APP_CORS_ALLOWED_ORIGINS`。存储凭据不能放入前端环境变量。
+
+公网使用前配置 HTTPS、私有 bucket、经过恢复演练的数据库与对象存储备份、`/actuator/health` 外部监控及日志保留。注册账号后通过受控流程设置管理员，不要通过重新启用演示种子取得管理员权限。跨域部署和服务商备份恢复需要在实际环境中单独验证。

@@ -20,7 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class SeedDataService implements CommandLineRunner {
 

@@ -1,8 +1,9 @@
 package com.generatecloud.app.service;
 
 import com.generatecloud.app.dto.ImageResponse;
+import com.generatecloud.app.dto.ImageAuthorResponse;
+import com.generatecloud.app.dto.ImagePageResponse;
 import com.generatecloud.app.dto.TeamEventResponse;
-import com.generatecloud.app.dto.UserProfileResponse;
 import com.generatecloud.app.entity.ImageAsset;
 import com.generatecloud.app.entity.TeamSpace;
 import com.generatecloud.app.entity.UserAccount;
@@ -15,10 +16,15 @@ import com.generatecloud.app.repository.ImageAssetRepository;
 import com.generatecloud.app.websocket.TeamCollaborationWebSocketHandler;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,7 +34,7 @@ public class ImageService {
 
     private final ImageAssetRepository imageAssetRepository;
     private final StorageService storageService;
-    private final AuthService authService;
+    private final StorageCleanupService storageCleanupService;
     private final TeamService teamService;
     private final TeamCollaborationWebSocketHandler webSocketHandler;
 
@@ -95,13 +101,35 @@ public class ImageService {
     }
 
     @Transactional(readOnly = true)
-    public List<ImageResponse> listPublicImages(String query, String tag) {
-        return imageAssetRepository
-                .findByVisibilityAndModerationStatusOrderByCreatedAtDesc(Visibility.PUBLIC, ModerationStatus.APPROVED)
-                .stream()
-                .filter(image -> matches(image, query, tag))
-                .map(this::toResponse)
-                .toList();
+    public ImagePageResponse listPublicImages(String query, String tag, int page, int size) {
+        if (page < 0 || size < 1 || size > 100 || (long) page * size > Integer.MAX_VALUE) {
+            throw new BadRequestException("Page must be non-negative and size must be between 1 and 100");
+        }
+        Specification<ImageAsset> specification = (root, criteriaQuery, builder) -> {
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(builder.equal(root.get("visibility"), Visibility.PUBLIC));
+            predicates.add(builder.equal(root.get("moderationStatus"), ModerationStatus.APPROVED));
+            if (query != null && !query.isBlank()) {
+                String pattern = "%" + escapeLike(query.trim().toLowerCase(Locale.ROOT)) + "%";
+                predicates.add(builder.or(
+                        builder.like(builder.lower(root.get("title")), pattern, '\\'),
+                        builder.like(builder.lower(root.get("description")), pattern, '\\'),
+                        builder.like(builder.lower(root.get("category")), pattern, '\\'),
+                        builder.like(builder.lower(root.get("tags")), pattern, '\\')));
+            }
+            if (tag != null && !tag.isBlank()) {
+                // Tags are stored as normalized comma-separated values; delimiters enforce exact matches.
+                String normalized = tag.trim().toLowerCase(Locale.ROOT);
+                predicates.add(normalized.contains(",") ? builder.disjunction()
+                        : builder.like(builder.concat(builder.concat(",", builder.lower(root.get("tags"))), ","),
+                                "%," + escapeLike(normalized) + ",%", '\\'));
+            }
+            return builder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+        Page<ImageAsset> result = imageAssetRepository.findAll(specification,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+        return new ImagePageResponse(result.map(this::toResponse).getContent(), page, size,
+                result.getTotalElements(), result.getTotalPages());
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +172,8 @@ public class ImageService {
         if (!allowed) {
             throw new UnauthorizedAccessException("Only the uploader or an admin can delete this image");
         }
+        // The outbox and metadata removal commit together. Objects are removed only after commit.
+        storageCleanupService.enqueue(image.getStoredFileName(), image.getThumbnailFileName());
         imageAssetRepository.delete(image);
     }
 
@@ -171,7 +201,7 @@ public class ImageService {
 
     public ImageResponse toResponse(ImageAsset image) {
         TeamSpace team = image.getTeam();
-        UserProfileResponse uploader = authService.toProfile(image.getUploader());
+        ImageAuthorResponse uploader = new ImageAuthorResponse(image.getUploader().getId(), image.getUploader().getName());
         return new ImageResponse(
                 image.getId(),
                 image.getTitle(),
@@ -194,23 +224,8 @@ public class ImageService {
                 .orElseThrow(() -> new NotFoundException("Image not found"));
     }
 
-    private boolean matches(ImageAsset image, String query, String tag) {
-        boolean queryMatches = true;
-        boolean tagMatches = true;
-        if (query != null && !query.isBlank()) {
-            String normalized = query.toLowerCase(Locale.ROOT);
-            queryMatches = image.getTitle().toLowerCase(Locale.ROOT).contains(normalized)
-                    || image.getDescription().toLowerCase(Locale.ROOT).contains(normalized)
-                    || image.getCategory().toLowerCase(Locale.ROOT).contains(normalized)
-                    || image.getTags().toLowerCase(Locale.ROOT).contains(normalized);
-        }
-        if (tag != null && !tag.isBlank()) {
-            String normalizedTag = tag.trim().toLowerCase(Locale.ROOT);
-            tagMatches = splitTags(image.getTags()).stream()
-                    .map(value -> value.toLowerCase(Locale.ROOT))
-                    .anyMatch(value -> value.equals(normalizedTag));
-        }
-        return queryMatches && tagMatches;
+    private String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private String blankToDefault(String value, String fallback) {

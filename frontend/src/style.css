@@ -59,6 +59,15 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -75,7 +84,8 @@ img {
 
 .page-shell {
   position: relative;
-  overflow: hidden;
+  /* Clip decorative ambient layers without creating a focus-scroll container. */
+  overflow: clip;
   width: min(1440px, calc(100% - 32px));
   margin: 0 auto;
   padding: 32px 0 48px;
@@ -122,7 +132,7 @@ img {
 
 .masthead__grid {
   display: grid;
-  grid-template-columns: 1.7fr 0.9fr;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.9fr);
   gap: 28px;
   align-items: start;
 }
@@ -276,7 +286,7 @@ img {
 
 .button:disabled {
   opacity: 0.6;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 .button--ghost {
@@ -329,6 +339,7 @@ input,
 textarea,
 select {
   width: 100%;
+  min-width: 0;
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid rgba(29, 39, 48, 0.12);
@@ -375,12 +386,13 @@ textarea {
 
 .surface--split {
   display: grid;
-  grid-template-columns: minmax(300px, 0.95fr) minmax(360px, 1.05fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   gap: 26px;
 }
 
 .section-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 18px;
   align-items: flex-end;
@@ -401,8 +413,10 @@ textarea {
 }
 
 .search-bar {
-  grid-template-columns: 1.5fr 0.9fr auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.9fr) auto;
   align-items: end;
+  flex: 1 1 480px;
+  max-width: 100%;
 }
 
 .form-grid {
@@ -411,7 +425,7 @@ textarea {
 
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -477,6 +491,8 @@ textarea {
 }
 
 .inline-link {
+  padding: 0;
+  background: transparent;
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 0.18em;
@@ -490,7 +506,7 @@ textarea {
 .library-row,
 .review-row {
   display: grid;
-  grid-template-columns: 132px 1fr auto;
+  grid-template-columns: 132px minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
   padding: 14px;
@@ -506,7 +522,7 @@ textarea {
 
 .team-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: 24px;
 }
 
@@ -540,6 +556,16 @@ textarea {
 .team-chip span {
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.team-chip--active {
+  background: var(--accent);
+  border-color: transparent;
+  color: white;
+}
+
+.team-chip--active span {
+  color: white;
 }
 
 .team-form {
@@ -601,7 +627,81 @@ textarea {
 }
 
 .feed-input {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.masthead__grid > *,
+.surface--split > *,
+.team-layout > *,
+.section-header > *,
+.library-row > *,
+.review-row > *,
+.search-bar > *,
+.form-grid > *,
+.feed-input > *,
+label {
+  min-width: 0;
+}
+
+.masthead,
+.surface {
+  overflow-wrap: anywhere;
+}
+
+.library-row small,
+.review-row small {
+  display: block;
+}
+
+.gallery-pagination,
+.original-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.connection-help {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.asset-placeholder {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-height: 132px;
+  padding: 16px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-align: center;
+}
+
+.original-dialog {
+  width: min(1100px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.original-dialog::backdrop {
+  background: rgba(29, 39, 48, 0.65);
+}
+
+.original-dialog__header {
+  margin: 0 0 16px;
+}
+
+.original-dialog img {
+  aspect-ratio: auto;
+  max-height: 70vh;
+  object-fit: contain;
 }
 
 .review-actions {
@@ -654,5 +754,9 @@ textarea {
   .button,
   .team-chip {
     width: 100%;
+  }
+
+  .feed-panel__header {
+    flex-wrap: wrap;
   }
 }

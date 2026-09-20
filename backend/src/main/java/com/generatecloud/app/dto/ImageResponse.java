@@ -17,7 +17,7 @@ public record ImageResponse(
         ModerationStatus moderationStatus,
         Long teamId,
         String teamName,
-        UserProfileResponse uploader,
+        ImageAuthorResponse uploader,
         Instant createdAt
 ) {
 }

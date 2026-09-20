@@ -1,5 +1,14 @@
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-const mediaTokenCookieName = 'generate_cloud_token'
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
 
 export async function apiRequest<T>(
   path: string,
@@ -27,12 +36,12 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     if (payload && typeof payload === 'object' && 'message' in payload) {
-      throw new Error(String(payload.message))
+      throw new ApiError(String(payload.message), response.status)
     }
     if (typeof payload === 'string' && payload.trim()) {
-      throw new Error(compactHtml(payload))
+      throw new ApiError(compactHtml(payload), response.status)
     }
-    throw new Error(`Request failed (${response.status})`)
+    throw new ApiError(`Request failed (${response.status})`, response.status)
   }
 
   return payload as T
@@ -42,22 +51,29 @@ export function buildApiUrl(path: string): string {
   return `${apiBase}${path}`
 }
 
-export function buildAssetUrl(path: string, token?: string): string {
-  const url = new URL(buildApiUrl(path), window.location.origin)
-  if (token) {
-    url.searchParams.set('token', token)
+export function buildAssetUrl(path: string): string {
+  return new URL(buildApiUrl(path), window.location.origin).toString()
+}
+
+export function expireLegacyMediaCookie() {
+  // Migration only: older builds wrote a JWT cookie; never create or refresh it.
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `generate_cloud_token=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+}
+
+export async function fetchProtectedAsset(path: string, token: string, signal: AbortSignal): Promise<string> {
+  const response = await fetch(buildAssetUrl(path), {
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'omit',
+    cache: 'no-store',
+    signal,
+  })
+  if (!response.ok) {
+    throw new ApiError(`Image could not be loaded (${response.status}).`, response.status)
   }
-  return url.toString()
-}
-
-export function persistMediaToken(token: string) {
-  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie = `${mediaTokenCookieName}=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure}`
-}
-
-export function clearMediaToken() {
-  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie = `${mediaTokenCookieName}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+  const blob = await response.blob()
+  signal.throwIfAborted()
+  return URL.createObjectURL(blob)
 }
 
 export function buildWebSocketUrl(path: string): string {

@@ -1,12 +1,15 @@
 package com.generatecloud.app.controller;
 
 import com.generatecloud.app.dto.ImageResponse;
+import com.generatecloud.app.dto.SocketTicketResponse;
 import com.generatecloud.app.dto.TeamCreateRequest;
 import com.generatecloud.app.dto.TeamMemberInviteRequest;
 import com.generatecloud.app.dto.TeamSummaryResponse;
+import com.generatecloud.app.entity.UserAccount;
 import com.generatecloud.app.security.AppUserPrincipal;
 import com.generatecloud.app.service.AuthService;
 import com.generatecloud.app.service.ImageService;
+import com.generatecloud.app.service.JwtService;
 import com.generatecloud.app.service.TeamService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,6 +30,7 @@ public class TeamController {
     private final TeamService teamService;
     private final ImageService imageService;
     private final AuthService authService;
+    private final JwtService jwtService;
 
     @GetMapping
     public List<TeamSummaryResponse> teams(@AuthenticationPrincipal AppUserPrincipal principal) {
@@ -47,6 +51,17 @@ public class TeamController {
             @PathVariable Long teamId
     ) {
         return teamService.getTeamDetails(authService.requireUser(principal), teamId);
+    }
+
+    @PostMapping("/{teamId}/socket-ticket")
+    public SocketTicketResponse socketTicket(
+            @AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long teamId
+    ) {
+        UserAccount user = authService.requireUser(principal);
+        teamService.requireMembership(teamId, user);
+        teamService.getTeam(teamId);
+        return jwtService.generateSocketTicket(user.getEmail(), user.getId(), teamId);
     }
 
     @PostMapping("/{teamId}/members")

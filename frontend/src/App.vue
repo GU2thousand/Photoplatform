@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { apiRequest, buildAssetUrl, buildWebSocketUrl, clearMediaToken, persistMediaToken } from './api'
+import { apiRequest, buildWebSocketUrl, expireLegacyMediaCookie } from './api'
+import AssetImage from './components/AssetImage.vue'
+import OriginalAsset from './components/OriginalAsset.vue'
+import { createTeamConnection, type ConnectionState } from './teamConnection'
 import type {
   AuthResponse,
   DashboardStats,
   ImageAsset,
+  ImagePage,
   ModerationStatus,
   TeamEvent,
   TeamSummary,
@@ -23,13 +27,47 @@ const session = reactive<{ token: string; currentUser: UserProfile | null }>({
 const activeView = ref<ViewKey>('public')
 const stats = ref<DashboardStats | null>(null)
 const publicImages = ref<ImageAsset[]>([])
+const publicPage = ref(0)
+const publicTotal = ref(0)
+const publicPages = ref(0)
+const galleryError = ref('')
+let galleryRequest: AbortController | undefined
+let appliedFilters = { query: '', tag: '' }
 const personalImages = ref<ImageAsset[]>([])
 const teamImages = ref<ImageAsset[]>([])
 const pendingImages = ref<ImageAsset[]>([])
 const teams = ref<TeamSummary[]>([])
 const liveFeed = ref<TeamEvent[]>([])
 const activeTeamId = ref<number | null>(null)
-const teamSocket = ref<WebSocket | null>(null)
+const socketState = ref<ConnectionState>('offline')
+const socketStatus = computed(() => ({
+  offline: 'Offline', connecting: 'Connecting…', connected: 'Connected', reconnecting: 'Reconnecting…',
+})[socketState.value])
+const teamConnection = createTeamConnection({
+  async requestTicket(teamId, signal) {
+    const response = await apiRequest<{ ticket: string; expiresAt: string }>(
+      `/api/teams/${teamId}/socket-ticket`, { method: 'POST', signal }, session.token,
+    )
+    return response.ticket
+  },
+  openSocket: (teamId, ticket) => new WebSocket(
+    `${buildWebSocketUrl(`/ws/teams/${teamId}`)}?ticket=${encodeURIComponent(ticket)}`,
+  ),
+  onState(state) {
+    socketState.value = state
+    if (state === 'connected' && activeTeamId.value) {
+      // Recover library changes that may have happened while disconnected.
+      void loadTeamImages(activeTeamId.value).catch((error) => setNotice(asMessage(error), 'error'))
+    }
+  },
+  onMessage(event) {
+    liveFeed.value = [event, ...liveFeed.value].slice(0, 12)
+    if (event.type.startsWith('IMAGE_') && activeTeamId.value) {
+      void loadTeamImages(activeTeamId.value).catch((error) => setNotice(asMessage(error), 'error'))
+    }
+  },
+  onUnavailable: (error) => setNotice(`Live updates unavailable: ${asMessage(error)}`, 'error'),
+})
 
 const loginForm = reactive({
   email: 'avery@generatecloud.local',
@@ -111,6 +149,10 @@ const availableViews = computed(() => {
 let noticeTimer: number | undefined
 
 onMounted(async () => {
+  expireLegacyMediaCookie()
+  teamConnection.setOnline(navigator.onLine)
+  window.addEventListener('online', updateNetworkState)
+  window.addEventListener('offline', updateNetworkState)
   await refreshPublicGallery()
   if (session.token) {
     await restoreSession()
@@ -118,20 +160,36 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  disconnectTeamSocket()
+  teamConnection.stop()
+  galleryRequest?.abort()
+  window.removeEventListener('online', updateNetworkState)
+  window.removeEventListener('offline', updateNetworkState)
   clearTimeout(noticeTimer)
 })
 
 watch(activeTeamId, async (teamId) => {
-  disconnectTeamSocket()
+  teamConnection.stop()
   liveFeed.value = []
+  teamImages.value = []
+  noteDraft.value = ''
   if (teamId && isAuthenticated.value) {
-    await loadTeamImages(teamId)
-    connectTeamSocket(teamId)
-  } else {
-    teamImages.value = []
+    teamConnection.start(teamId)
+    try {
+      await loadTeamImages(teamId)
+    } catch (error) {
+      setNotice(asMessage(error), 'error')
+    }
   }
 })
+
+function updateNetworkState() {
+  teamConnection.setOnline(navigator.onLine)
+}
+
+function assetToken(image: ImageAsset) {
+  return image.visibility === 'PUBLIC' && image.moderationStatus === 'APPROVED'
+    ? undefined : session.token
+}
 
 function setNotice(text: string, tone: 'info' | 'success' | 'error' = 'info') {
   notice.text = text
@@ -149,7 +207,6 @@ function formatDate(value: string) {
 async function restoreSession() {
   try {
     session.currentUser = await apiRequest<UserProfile>('/api/auth/me', {}, session.token)
-    persistMediaToken(session.token)
     await hydratePrivateData()
   } catch {
     clearSession(false)
@@ -158,29 +215,40 @@ async function restoreSession() {
 }
 
 async function refreshPublicGallery() {
-  busy.gallery = true
-  try {
-    const params = new URLSearchParams()
-    if (filters.query.trim()) {
-      params.set('query', filters.query.trim())
-    }
-    if (filters.tag.trim()) {
-      params.set('tag', filters.tag.trim())
-    }
+  await loadPublicPage(false)
+}
 
-    const querySuffix = params.toString() ? `?${params.toString()}` : ''
-    const [images, summary] = await Promise.all([
-      apiRequest<ImageAsset[]>(`/api/public/images${querySuffix}`),
-      apiRequest<DashboardStats>('/api/public/summary'),
+async function loadPublicPage(append: boolean) {
+  if (append && (busy.gallery || publicPage.value + 1 >= publicPages.value)) return
+  galleryRequest?.abort()
+  const request = new AbortController()
+  galleryRequest = request
+  busy.gallery = true
+  galleryError.value = ''
+  if (!append) {
+    appliedFilters = { query: filters.query.trim(), tag: filters.tag.trim() }
+    publicImages.value = []
+    publicTotal.value = 0
+    publicPages.value = 0
+  }
+  const params = new URLSearchParams({
+    ...appliedFilters, page: String(append ? publicPage.value + 1 : 0), size: '24',
+  })
+  try {
+    const [result, summary] = await Promise.all([
+      apiRequest<ImagePage>(`/api/public/images?${params}`, { signal: request.signal }),
+      apiRequest<DashboardStats>('/api/public/summary', { signal: request.signal }),
     ])
-    publicImages.value = images
-    if (!isAdmin.value) {
-      stats.value = summary
-    }
+    if (request.signal.aborted) return
+    publicImages.value = append ? [...publicImages.value, ...result.items] : result.items
+    publicPage.value = result.page
+    publicTotal.value = result.totalElements
+    publicPages.value = result.totalPages
+    if (!isAdmin.value) stats.value = summary
   } catch (error) {
-    setNotice(asMessage(error), 'error')
+    if (!request.signal.aborted) galleryError.value = asMessage(error)
   } finally {
-    busy.gallery = false
+    if (galleryRequest === request) busy.gallery = false
   }
 }
 
@@ -228,7 +296,6 @@ async function applyAuth(response: AuthResponse) {
   session.token = response.token
   session.currentUser = response.user
   localStorage.setItem(storageKey, response.token)
-  persistMediaToken(response.token)
   registerForm.name = ''
   registerForm.email = ''
   registerForm.password = ''
@@ -241,7 +308,7 @@ function clearSession(showMessage = true) {
   session.token = ''
   session.currentUser = null
   localStorage.removeItem(storageKey)
-  clearMediaToken()
+  expireLegacyMediaCookie()
   personalImages.value = []
   teamImages.value = []
   pendingImages.value = []
@@ -250,20 +317,25 @@ function clearSession(showMessage = true) {
   activeTeamId.value = null
   stats.value = null
   activeView.value = 'public'
-  disconnectTeamSocket()
+  teamConnection.stop()
   if (showMessage) {
     setNotice('Signed out.', 'info')
   }
 }
 
 async function loadPersonalImages() {
-  personalImages.value = await apiRequest<ImageAsset[]>('/api/images/me', {}, session.token)
+  const token = session.token
+  const images = await apiRequest<ImageAsset[]>('/api/images/me', {}, token)
+  if (session.token === token) personalImages.value = images
 }
 
 async function loadTeams() {
   busy.team = true
   try {
-    teams.value = await apiRequest<TeamSummary[]>('/api/teams', {}, session.token)
+    const token = session.token
+    const result = await apiRequest<TeamSummary[]>('/api/teams', {}, token)
+    if (session.token !== token) return
+    teams.value = result
     const firstTeam = teams.value[0]
     if (!activeTeamId.value && firstTeam) {
       activeTeamId.value = firstTeam.id
@@ -278,16 +350,20 @@ async function loadTeams() {
 }
 
 async function loadTeamImages(teamId: number) {
-  teamImages.value = await apiRequest<ImageAsset[]>(`/api/teams/${teamId}/images`, {}, session.token)
+  const token = session.token
+  const images = await apiRequest<ImageAsset[]>(`/api/teams/${teamId}/images`, {}, token)
+  if (session.token === token && activeTeamId.value === teamId) teamImages.value = images
 }
 
 async function loadAdminData() {
   busy.admin = true
   try {
+    const token = session.token
     const [summary, pending] = await Promise.all([
-      apiRequest<DashboardStats>('/api/admin/stats', {}, session.token),
-      apiRequest<ImageAsset[]>('/api/admin/images/pending', {}, session.token),
+      apiRequest<DashboardStats>('/api/admin/stats', {}, token),
+      apiRequest<ImageAsset[]>('/api/admin/images/pending', {}, token),
     ])
+    if (session.token !== token) return
     stats.value = summary
     pendingImages.value = pending
   } finally {
@@ -431,44 +507,13 @@ async function moderateImage(imageId: number, status: ModerationStatus) {
   }
 }
 
-function connectTeamSocket(teamId: number) {
-  if (!session.token) {
-    return
-  }
-
-  const socket = new WebSocket(
-    `${buildWebSocketUrl(`/ws/teams/${teamId}`)}?token=${encodeURIComponent(session.token)}`,
-  )
-
-  socket.onmessage = (event) => {
-    const payload = JSON.parse(event.data) as TeamEvent
-    liveFeed.value = [payload, ...liveFeed.value].slice(0, 12)
-    if (payload.type === 'IMAGE_UPLOADED') {
-      void loadTeamImages(teamId)
-    }
-  }
-
-  socket.onclose = () => {
-    if (teamSocket.value === socket) {
-      teamSocket.value = null
-    }
-  }
-
-  teamSocket.value = socket
-}
-
-function disconnectTeamSocket() {
-  if (teamSocket.value) {
-    teamSocket.value.close()
-    teamSocket.value = null
-  }
-}
-
 function sendTeamNote() {
-  if (!noteDraft.value.trim() || teamSocket.value?.readyState !== WebSocket.OPEN) {
+  const message = noteDraft.value.trim()
+  if (!message) return
+  if (!teamConnection.send(message)) {
+    setNotice('Your note was not sent. Wait for the connection to return and try again.', 'error')
     return
   }
-  teamSocket.value.send(noteDraft.value.trim())
   noteDraft.value = ''
 }
 
@@ -550,11 +595,11 @@ function asMessage(error: unknown): string {
             <form class="stack-form" @submit.prevent="submitLogin">
               <label>
                 <span>Email</span>
-                <input v-model="loginForm.email" type="email" placeholder="admin@generatecloud.local" />
+                <input v-model="loginForm.email" type="email" autocomplete="username" placeholder="admin@generatecloud.local" />
               </label>
               <label>
                 <span>Password</span>
-                <input v-model="loginForm.password" type="password" placeholder="••••••••" />
+                <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="••••••••" />
               </label>
               <button class="button" type="submit" :disabled="busy.auth">
                 {{ busy.auth ? 'Signing In...' : 'Sign In' }}
@@ -566,15 +611,15 @@ function asMessage(error: unknown): string {
             <form class="stack-form" @submit.prevent="submitRegister">
               <label>
                 <span>Name</span>
-                <input v-model="registerForm.name" type="text" placeholder="Morgan Lee" />
+                <input v-model="registerForm.name" type="text" autocomplete="name" placeholder="Morgan Lee" />
               </label>
               <label>
                 <span>Email</span>
-                <input v-model="registerForm.email" type="email" placeholder="morgan@example.com" />
+                <input v-model="registerForm.email" type="email" autocomplete="email" placeholder="morgan@example.com" />
               </label>
               <label>
                 <span>Password</span>
-                <input v-model="registerForm.password" type="password" placeholder="At least 6 characters" />
+                <input v-model="registerForm.password" type="password" autocomplete="new-password" placeholder="At least 6 characters" />
               </label>
               <button class="button button--ghost" type="submit" :disabled="busy.auth">
                 {{ busy.auth ? 'Creating...' : 'Create Account' }}
@@ -585,7 +630,7 @@ function asMessage(error: unknown): string {
       </div>
     </header>
 
-    <p v-if="notice.text" class="notice" :class="`notice--${notice.tone}`">
+    <p v-if="notice.text" role="status" class="notice" :class="`notice--${notice.tone}`">
       {{ notice.text }}
     </p>
 
@@ -607,7 +652,7 @@ function asMessage(error: unknown): string {
 
         <div class="gallery-grid">
             <article v-for="image in publicImages" :key="image.id" class="image-card">
-            <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" loading="lazy" />
+            <AssetImage :path="image.thumbnailUrl" :alt="image.title" />
             <div class="image-card__body">
               <div class="image-card__meta">
                 <span>{{ image.category }}</span>
@@ -620,22 +665,26 @@ function asMessage(error: unknown): string {
               </div>
               <div class="image-card__footer">
                 <span>{{ image.uploader.name }}</span>
-                <a
-                  class="inline-link"
-                  :href="buildAssetUrl(image.imageUrl, session.token || undefined)"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open original
-                </a>
+                <OriginalAsset :path="image.imageUrl" :title="image.title" />
               </div>
             </div>
           </article>
         </div>
 
-        <p v-if="!publicImages.length" class="empty-state">
+        <p v-if="galleryError" class="notice notice--error" role="alert">
+          {{ galleryError }}
+          <button class="inline-link" type="button" @click="loadPublicPage(publicImages.length > 0)">Retry</button>
+        </p>
+        <p v-if="busy.gallery" class="empty-state" role="status">Loading images…</p>
+        <p v-else-if="!galleryError && !publicImages.length" class="empty-state">
           No public images match the current filters.
         </p>
+        <div v-if="publicImages.length" class="gallery-pagination">
+          <span>{{ publicImages.length }} of {{ publicTotal }} images</span>
+          <button v-if="publicPage + 1 < publicPages" class="button button--ghost" type="button" :disabled="busy.gallery" @click="loadPublicPage(true)">
+            {{ busy.gallery ? 'Loading…' : 'Load more' }}
+          </button>
+        </div>
       </section>
 
       <section v-if="isAuthenticated && activeView === 'personal'" class="surface surface--split">
@@ -705,7 +754,7 @@ function asMessage(error: unknown): string {
 
           <div class="stack-list">
             <article v-for="image in personalImages" :key="image.id" class="library-row">
-              <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
+              <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
               <div>
                 <div class="library-row__meta">
                   <span class="tag">{{ image.visibility }}</span>
@@ -716,6 +765,7 @@ function asMessage(error: unknown): string {
                 <h3>{{ image.title }}</h3>
                 <p>{{ image.description }}</p>
                 <small>{{ formatDate(image.createdAt) }}</small>
+                <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
               </div>
               <button class="button button--ghost" type="button" @click="deleteImage(image.id)">
                 Delete
@@ -740,6 +790,7 @@ function asMessage(error: unknown): string {
               :key="team.id"
               class="team-chip"
               :class="{ 'team-chip--active': activeTeamId === team.id }"
+              :aria-pressed="activeTeamId === team.id"
               type="button"
               @click="activeTeamId = team.id"
             >
@@ -789,7 +840,7 @@ function asMessage(error: unknown): string {
 
           <div class="gallery-grid gallery-grid--compact">
             <article v-for="image in teamImages" :key="image.id" class="image-card">
-              <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
+              <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
               <div class="image-card__body">
                 <div class="image-card__meta">
                   <span>{{ image.category }}</span>
@@ -797,6 +848,7 @@ function asMessage(error: unknown): string {
                 </div>
                 <h3>{{ image.title }}</h3>
                 <p>{{ image.description }}</p>
+                <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
                 <div class="tag-row">
                   <span v-for="tag in image.tags" :key="tag" class="tag">{{ tag }}</span>
                 </div>
@@ -810,8 +862,8 @@ function asMessage(error: unknown): string {
                 <div class="eyebrow">Realtime Feed</div>
                 <h3>Live team activity</h3>
               </div>
-              <span class="socket-status" :class="{ 'socket-status--live': teamSocket }">
-                {{ teamSocket ? 'Connected' : 'Offline' }}
+              <span class="socket-status" role="status" :class="{ 'socket-status--live': socketState === 'connected' }">
+                {{ socketStatus }}
               </span>
             </div>
 
@@ -826,9 +878,12 @@ function asMessage(error: unknown): string {
               </p>
             </div>
 
+            <p id="connection-help" class="connection-help" role="status">
+              {{ socketState === 'connected' ? 'Live updates are connected. Your team can receive notes.' : 'Notes can be sent when connected. Your draft will stay here while reconnecting.' }}
+            </p>
             <form class="feed-input" @submit.prevent="sendTeamNote">
-              <input v-model="noteDraft" type="text" placeholder="Post a quick collaboration note" />
-              <button class="button" type="submit">Send</button>
+              <input v-model="noteDraft" type="text" maxlength="240" aria-label="Collaboration note" aria-describedby="connection-help" placeholder="Post a quick collaboration note (up to 240 characters)" />
+              <button class="button" type="submit" :disabled="socketState !== 'connected' || !noteDraft.trim()">Send</button>
             </form>
           </div>
         </div>
@@ -844,7 +899,7 @@ function asMessage(error: unknown): string {
 
         <div class="stack-list">
           <article v-for="image in pendingImages" :key="image.id" class="review-row">
-            <img :src="buildAssetUrl(image.thumbnailUrl, session.token || undefined)" :alt="image.title" />
+            <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
             <div>
               <div class="library-row__meta">
                 <span class="tag">{{ image.category }}</span>
@@ -852,7 +907,8 @@ function asMessage(error: unknown): string {
               </div>
               <h3>{{ image.title }}</h3>
               <p>{{ image.description }}</p>
-              <small>{{ image.uploader.name }} · {{ image.uploader.email }}</small>
+              <small>{{ image.uploader.name }}</small>
+              <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
             </div>
             <div class="review-actions">
               <button class="button" type="button" @click="moderateImage(image.id, 'APPROVED')">

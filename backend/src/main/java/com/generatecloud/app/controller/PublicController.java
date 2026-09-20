@@ -1,10 +1,9 @@
 package com.generatecloud.app.controller;
 
 import com.generatecloud.app.dto.DashboardStatsResponse;
-import com.generatecloud.app.dto.ImageResponse;
+import com.generatecloud.app.dto.ImagePageResponse;
 import com.generatecloud.app.service.AdminService;
 import com.generatecloud.app.service.ImageService;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,11 +19,13 @@ public class PublicController {
     private final AdminService adminService;
 
     @GetMapping("/images")
-    public List<ImageResponse> images(
+    public ImagePageResponse images(
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) String tag
+            @RequestParam(required = false) String tag,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "24") int size
     ) {
-        return imageService.listPublicImages(query, tag);
+        return imageService.listPublicImages(query, tag, page, size);
     }
 
     @GetMapping("/summary")

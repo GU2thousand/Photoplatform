@@ -3,6 +3,7 @@ package com.generatecloud.app.storage;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.net.URI;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -90,5 +92,14 @@ public class S3ObjectStorage implements ObjectStorage {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public void deleteObject(String key) {
+        s3Client.deleteObject(DeleteObjectRequest.builder()
+                .bucket(properties.getBucket()).key(properties.qualify(key))
+                .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(5))
+                        .apiCallAttemptTimeout(Duration.ofSeconds(3)))
+                .build());
     }
 }

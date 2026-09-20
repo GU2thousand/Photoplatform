@@ -27,8 +27,16 @@ export interface ImageAsset {
   moderationStatus: ModerationStatus
   teamId: number | null
   teamName: string | null
-  uploader: UserProfile
+  uploader: Pick<UserProfile, 'id' | 'name'>
   createdAt: string
+}
+
+export interface ImagePage {
+  items: ImageAsset[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
 }
 
 export interface TeamMember {

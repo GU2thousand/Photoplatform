@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.UUID;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,11 +37,12 @@ public class StorageService {
 
         try {
             byte[] originalBytes = file.getBytes();
-            String storedName = UUID.randomUUID() + extension(file.getOriginalFilename());
+            String format = decodedFormat(originalBytes);
+            String storedName = UUID.randomUUID() + "." + format;
             String thumbnailName = UUID.randomUUID() + ".png";
             byte[] thumbnailBytes = generateThumbnail(originalBytes);
 
-            objectStorage.putObject(originalKey(storedName), originalBytes, file.getContentType());
+            objectStorage.putObject(originalKey(storedName), originalBytes, "image/" + format);
             objectStorage.putObject(thumbnailKey(thumbnailName), thumbnailBytes, THUMBNAIL_CONTENT_TYPE);
 
             return new StoredImage(file.getOriginalFilename(), storedName, thumbnailName, file.getSize());
@@ -120,12 +123,23 @@ public class StorageService {
         return outputStream.toByteArray();
     }
 
-    private String extension(String originalFileName) {
-        if (originalFileName == null || !originalFileName.contains(".")) {
-            return ".png";
+    private String decodedFormat(byte[] bytes) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            var readers = ImageIO.getImageReaders(stream);
+            if (!readers.hasNext()) {
+                throw new BadRequestException("Unsupported image type");
+            }
+            ImageReader reader = readers.next();
+            try {
+                String format = reader.getFormatName().toLowerCase(Locale.ROOT);
+                if (!java.util.Set.of("png", "jpeg", "gif", "bmp").contains(format)) {
+                    throw new BadRequestException("Unsupported image type");
+                }
+                return format;
+            } finally {
+                reader.dispose();
+            }
         }
-        String extension = originalFileName.substring(originalFileName.lastIndexOf('.')).toLowerCase(Locale.ROOT);
-        return extension.length() > 8 ? ".png" : extension;
     }
 
     @Getter

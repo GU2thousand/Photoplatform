@@ -1,6 +1,8 @@
 package com.generatecloud.app.controller;
 
 import com.generatecloud.app.entity.ImageAsset;
+import com.generatecloud.app.entity.enums.ModerationStatus;
+import com.generatecloud.app.entity.enums.Visibility;
 import com.generatecloud.app.security.AppUserPrincipal;
 import com.generatecloud.app.service.AuthService;
 import com.generatecloud.app.service.ImageService;
@@ -52,7 +54,11 @@ public class MediaController {
         MediaType mediaType = resolve(storedObject.contentType());
         Resource resource = new ByteArrayResource(storedObject.content());
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=3600")
+                .header(HttpHeaders.CACHE_CONTROL,
+                        image.getVisibility() == Visibility.PUBLIC
+                                && image.getModerationStatus() == ModerationStatus.APPROVED
+                                ? "public, max-age=3600" : "private, no-store")
+                .header(HttpHeaders.VARY, HttpHeaders.AUTHORIZATION)
                 .contentLength(storedObject.contentLength())
                 .contentType(mediaType)
                 .body(resource);
@@ -62,6 +68,10 @@ public class MediaController {
         if (contentType == null || contentType.isBlank()) {
             return MediaType.APPLICATION_OCTET_STREAM;
         }
-        return MediaType.parseMediaType(contentType);
+        MediaType parsed = MediaType.parseMediaType(contentType);
+        // Never serve HTML/SVG or other active content from user-controlled filename metadata.
+        return java.util.Set.of("image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif")
+                .contains(parsed.toString().toLowerCase(java.util.Locale.ROOT))
+                ? parsed : MediaType.APPLICATION_OCTET_STREAM;
     }
 }
