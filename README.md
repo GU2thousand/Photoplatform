@@ -93,7 +93,7 @@ The optional encoder uses normalized 512-dimensional CLIP ViT-B/32 embeddings ta
 
 The database outbox survives broker outages; publication requires a routed publisher confirmation. Workers use manual acknowledgements, bounded prefetch, durable state, claims, and per-media PostgreSQL advisory locks. Duplicate deliveries reuse unique job/variant identities. Expired leases become eligible for redelivery; processing and deletion share a lock. Hourly reconciliation removes late staging writes and orphan variants after a lost database connection.
 
-Transient failures retry with backoff, up to three attempts; invalid images fail permanently. Terminal jobs remain in the database and are published to `media.dlq`. Owners/admins can replay eligible processing or embedding jobs through `POST /api/images/{id}/retry?type=MEDIA_PROCESS|EMBED`. Operators can use [the replay utility](scripts/replay_job.py), including failed deletion. Once staging has been cleaned, failed media processing requires a new upload.
+Processing/embedding failures retry with backoff, up to three attempts; invalid images fail permanently. Deletion failures continue retrying with a five-minute maximum backoff, and hourly reconciliation recovers deletion jobs dead-lettered by older workers. Terminal jobs remain in the database and are published to `media.dlq`. Owners/admins can replay eligible processing or embedding jobs through `POST /api/images/{id}/retry?type=MEDIA_PROCESS|EMBED`. Operators can use [the replay utility](scripts/replay_job.py), including failed deletion. Once staging has been cleaned, failed media processing requires a new upload.
 
 ## Scaling and load benchmarks
 

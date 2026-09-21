@@ -126,10 +126,11 @@ public class OutboxDispatcher {
         // A worker can lose its database connection/advisory lock during external
         // storage I/O, then finish a stale PUT after DELETE. Reconcile tombstoned
         // prefixes hourly so these objects cannot become permanent orphans.
+        // Also recover DELETE jobs dead-lettered by older worker versions.
         var rows=jdbc.queryForList("""
             SELECT j.id,j.media_id FROM media_processing_jobs j JOIN image_assets a ON a.id=j.media_id
-            WHERE j.job_type='DELETE' AND j.status='DONE' AND j.finished_at<now()-interval '1 hour'
-            AND a.deleted_at IS NOT NULL AND a.processing_status='DELETED'
+            WHERE j.job_type='DELETE' AND j.status IN ('DONE','DLQ') AND j.finished_at<now()-interval '1 hour'
+            AND a.deleted_at IS NOT NULL AND a.processing_status IN ('DELETED','DELETING')
             ORDER BY j.finished_at LIMIT 100
             """);
         for(var row:rows) {
@@ -140,8 +141,8 @@ public class OutboxDispatcher {
                     UPDATE media_processing_jobs j SET status='QUEUED',attempt=0,claim_token=NULL,lease_until=NULL,
                         next_attempt_at=now(),last_error_code=NULL,updated_at=now(),started_at=NULL,finished_at=NULL,worker_id=NULL
                     FROM image_assets a WHERE j.id=? AND a.id=j.media_id
-                        AND j.status='DONE' AND j.finished_at<now()-interval '1 hour'
-                        AND a.deleted_at IS NOT NULL AND a.processing_status='DELETED'
+                        AND j.status IN ('DONE','DLQ') AND j.finished_at<now()-interval '1 hour'
+                        AND a.deleted_at IS NOT NULL AND a.processing_status IN ('DELETED','DELETING')
                     """,row.get("id"));
                 if(claimed==1) jdbc.update("UPDATE media_outbox SET last_published_at=NULL WHERE job_id=?",row.get("id"));
             });

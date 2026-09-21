@@ -6,6 +6,8 @@ only media created by these tests to simulate lost delivery, stale leases, and
 historical jobs. Run after normal integration tests and outside benchmarks.
 """
 import time
+import os
+import boto3
 import unittest
 import uuid
 
@@ -66,6 +68,38 @@ class PipelineFaults(unittest.TestCase):
                                            (upload["mediaId"],)).fetchone()[0], 0)
             self.assertEqual(lock.execute("SELECT status FROM media_processing_jobs WHERE media_id=%s AND job_type='MEDIA_PROCESS'",
                                            (upload["mediaId"],)).fetchone()[0], "CANCELLED")
+
+    def test_versioned_media_erasure_and_legacy_dead_letter_recovery(self):
+        s3 = boto3.client("s3", endpoint_url=os.getenv("TEST_STORAGE_ENDPOINT", "http://localhost:19000"),
+                          region_name="us-east-1", aws_access_key_id="minioadmin",
+                          aws_secret_access_key=os.getenv("MINIO_PASSWORD", "minioadmin"))
+        bucket = "generatecloud-assets"
+        s3.put_bucket_versioning(Bucket=bucket, VersioningConfiguration={"Status": "Enabled"})
+        upload = self.ready()
+        prefix = f"generate-cloud/media/{upload['mediaId']}/"
+        key = prefix + "historical"
+        for payload in (b"old", b"new"):
+            s3.put_object(Bucket=bucket, Key=key, Body=payload)
+        s3.delete_object(Bucket=bucket, Key=key)
+        before = s3.list_object_versions(Bucket=bucket, Prefix=prefix)
+        self.assertGreaterEqual(len(before.get("Versions", [])), 7)
+        self.assertTrue(before.get("DeleteMarkers"))
+        with psycopg.connect(DB, autocommit=True) as conn:
+            conn.execute("SELECT pg_advisory_lock(%s)", (upload["mediaId"],))
+            try:
+                response = request("DELETE", f"/api/images/{upload['mediaId']}", self.owner)
+                self.assertEqual(response.status_code, 200, response.text)
+                # An old worker exhausted retries. The scheduler must recover this
+                # without an owner retry endpoint or an operator replay command.
+                conn.execute("""UPDATE media_processing_jobs SET status='DLQ',attempt=3,
+                    finished_at=now()-interval '2 hours',last_error_code='STORAGE_UNAVAILABLE'
+                    WHERE media_id=%s AND job_type='DELETE'""", (upload["mediaId"],))
+            finally:
+                conn.execute("SELECT pg_advisory_unlock(%s)", (upload["mediaId"],))
+            self.wait(upload, "DELETED", timeout=90)
+        after = s3.list_object_versions(Bucket=bucket, Prefix=prefix)
+        self.assertFalse(after.get("Versions"))
+        self.assertFalse(after.get("DeleteMarkers"))
 
     def test_retry_does_not_restart_historical_pipeline_version(self):
         upload = self.ready()

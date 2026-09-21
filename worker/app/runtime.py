@@ -188,9 +188,11 @@ class Worker:
             self.finish(conn,job,"CANCELLED"); return
         prefix = object_key(f"media/{job['media_id']}/")
         with STORAGE_TIME.labels("delete").time(), tracer.start_as_current_span("storage.delete_variants"):
-            for page in self.s3.get_paginator("list_objects_v2").paginate(Bucket=self.bucket,Prefix=prefix):
-                for item in page.get("Contents",[]):
-                    self.s3.delete_object(Bucket=self.bucket,Key=item["Key"])
+            for page in self.s3.get_paginator("list_object_versions").paginate(Bucket=self.bucket,Prefix=prefix):
+                # Explicit version IDs also cover the "null" version of an unversioned
+                # or suspended bucket. A key-only delete would only add a marker.
+                for item in page.get("Versions", []) + page.get("DeleteMarkers", []):
+                    self.s3.delete_object(Bucket=self.bucket, Key=item["Key"], VersionId=item["VersionId"])
         with conn.transaction():
             conn.execute("DELETE FROM media_embeddings WHERE media_id=%s",(job["media_id"],))
             conn.execute("DELETE FROM media_variants WHERE media_id=%s",(job["media_id"],))
@@ -204,7 +206,9 @@ class Worker:
             missing=exc.response["Error"]["Code"] in {"NoSuchKey","404"}
             reason="OBJECT_MISSING" if missing else "STORAGE_UNAVAILABLE"
             permanent=missing
-        dead=permanent or job["attempt"]>=3
+        # Erasure remains durable through arbitrarily long storage outages.
+        # Permissions/object-lock failures also stay visible and retry with capped backoff.
+        dead=job["job_type"] != "DELETE" and (permanent or job["attempt"]>=3)
         status="DLQ" if dead else "RETRY"
         with conn.transaction():
             # All lifecycle transactions lock image before job (API delete/retry and

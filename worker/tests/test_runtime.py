@@ -104,7 +104,7 @@ class RuntimeTests(unittest.TestCase):
     def test_delete_storage_failure_preserves_rows_for_retry(self):
         self.rows({"deleted_at": datetime.now(timezone.utc)})
         self.worker.s3.get_paginator.return_value.paginate.return_value = [
-            {"Contents": [{"Key": "first"}, {"Key": "second"}]}]
+            {"Versions": [{"Key": "first", "VersionId": "v1"}, {"Key": "second", "VersionId": "v2"}]}]
         self.worker.s3.delete_object.side_effect = [None, OSError("offline")]
         with self.assertRaises(OSError):
             self.worker.delete(self.conn, dict(self.job, job_type="DELETE"))
@@ -113,10 +113,17 @@ class RuntimeTests(unittest.TestCase):
     def test_delete_walks_all_pages_before_committing_deleted(self):
         self.rows({"deleted_at": datetime.now(timezone.utc)})
         self.worker.s3.get_paginator.return_value.paginate.return_value = [
-            {"Contents": [{"Key": "first"}]}, {}, {"Contents": [{"Key": "second"}]}]
+            {"Versions": [{"Key": "first", "VersionId": "v1"}, {"Key": "first", "VersionId": "v0"}]},
+            {}, {"Versions": [{"Key": "second", "VersionId": "null"}],
+                 "DeleteMarkers": [{"Key": "first", "VersionId": "marker"}]}]
         self.worker.delete(self.conn, dict(self.job, job_type="DELETE"))
         self.assertEqual([c.kwargs["Key"] for c in self.worker.s3.delete_object.call_args_list],
-                         ["first", "second"])
+                         ["first", "first", "second", "first"])
+        self.assertEqual([c.kwargs["VersionId"] for c in self.worker.s3.delete_object.call_args_list],
+                         ["v1", "v0", "null", "marker"])
+        self.worker.s3.get_paginator.assert_called_once_with("list_object_versions")
+        self.assertEqual(self.worker.s3.get_paginator.return_value.paginate.call_args.kwargs["Prefix"],
+                         "generate-cloud/media/17/")
         self.assertTrue(any("processing_status='DELETED'" in sql for sql, _ in self.statements()))
         self.assertEqual(self.statements()[-1][1][0], "DONE")
 
@@ -140,6 +147,18 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(len(image_updates), int(expected == "DLQ"))
                 if image_updates:
                     self.assertIn("deleted_at IS NULL", image_updates[0])
+
+    def test_delete_keeps_retrying_after_attempt_limit_with_bounded_backoff(self):
+        for attempt in (3, 20, 1000):
+            with self.subTest(attempt=attempt):
+                self.conn.reset_mock()
+                error = ClientError({"Error": {"Code": "AccessDenied"}}, "DeleteObject")
+                self.worker.fail(self.conn, dict(self.job, job_type="DELETE", attempt=attempt), error)
+                params = next(params for sql, params in self.statements() if "UPDATE media_processing_jobs" in sql)
+                self.assertEqual(params[:2], ("RETRY", "STORAGE_UNAVAILABLE"))
+                self.assertLessEqual(params[2], 300)
+                self.assertTrue(any("last_published_at=NULL" in sql for sql, _ in self.statements()))
+                self.assertFalse(any("UPDATE image_assets" in sql for sql, _ in self.statements()))
 
     def test_missing_source_is_permanent_and_embedding_failure_is_independent(self):
         error = ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
