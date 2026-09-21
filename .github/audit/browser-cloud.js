@@ -51,7 +51,7 @@ async (page) => {
     const note='cloud-runtime-note-'+Date.now();
     await page.getByRole('textbox',{name:'Collaboration note'}).fill(note);
     await page.getByRole('button',{name:'Send',exact:true}).click();
-    await page.locator('.feed-stream').getByText(note,{exact:true}).waitFor();
+    await page.locator('.feed-stream').getByText('Cloud Runtime: '+note,{exact:true}).waitFor();
   });
   await check('refresh retains authenticated session and team access', async () => {
     await page.reload(); await page.getByRole('button',{name:'Team Space',exact:true}).waitFor();
