@@ -1,0 +1,10 @@
+{
+  "result": "PASS",
+  "containerImage": "photo-cloud-upgrade-ml",
+  "architecture": "linux/arm64",
+  "authentication": "unauthorized request rejected",
+  "dimensions": 512,
+  "squaredNorm": 1.0000003124760193,
+  "memoryLimitMiB": 1536,
+  "cpuLimit": 2
+}

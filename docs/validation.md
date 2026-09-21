@@ -17,7 +17,7 @@ This record separates executed checks from deployment templates. Tests ran again
 - Observability: API, media-worker and embedding-worker Prometheus targets were healthy. Search/storage histogram buckets and `websocket_connections` were exported. Grafana health passed. Tempo returned a trace containing both `media-api` and `media-worker`, rooted at upload completion and continuing through queue delivery and storage/processing spans.
 - Infrastructure: Terraform formatting and validation passed with Terraform 1.16.3 / AWS provider 6.65.0. Render Blueprint validated against its published schema. Merged Compose, monitoring YAML and dashboard JSON validated. These are configuration checks, not cloud deployment evidence.
 
-Local backend verification used Java 18.0.2.1; the source and production Docker image target Java 17, also selected by CI. Native API/CLIP processes connected to Dockerized infrastructure; the CPU ML Docker image also built successfully; a full multi-container ML deployment is a separate capacity check.
+Local backend verification used Java 18.0.2.1; the source and production Docker image target Java 17, also selected by CI. Native API/CLIP processes connected to Dockerized infrastructure; the CPU ML Docker image also built and ran on Linux arm64 with a 1.5 GiB memory / 2 CPU cap. Its actual loaded model rejected an unauthenticated encode request and returned a normalized 512-dimensional vector for an authenticated request ([record](benchmarks/ml-container-verification.json)). A full multi-container ML deployment remains a separate capacity check.
 
 ## Worker scaling: 500 images per trial
 
