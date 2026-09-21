@@ -1,0 +1,70 @@
+name: Cloud browser and semantic runtime
+on:
+  push:
+    branches: [codex/cloud-runtime-check-20260921]
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: photo-cloud-runtime
+      APP_SEED_ENABLED: 'false'
+      SEMANTIC_SEARCH_ENABLED: 'true'
+      API_PORT: '18082'
+      POSTGRES_PORT: '15543'
+      MINIO_PORT: '19000'
+      RABBITMQ_PORT: '15673'
+      FRONTEND_PORT: '15173'
+      FRONTEND_ORIGIN: http://localhost:15173
+      TEST_API_URL: http://localhost:18082
+      TEST_DATABASE_URL: postgresql://generatecloud:generatecloud@localhost:15543/generatecloud
+      ALLOW_INTEGRATION_WRITES: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r worker/requirements.txt
+          npm install --prefix /tmp/audit-tools --no-save @playwright/cli@0.1.21
+          echo '/tmp/audit-tools/node_modules/.bin' >> "$GITHUB_PATH"
+          mkdir -p output/playwright
+          python -c "from PIL import Image; Image.new('RGB',(640,480),'orange').save('output/playwright/fixture.png')"
+      - name: Boot production frontend, API, PostgreSQL, object store, broker and real CLIP services
+        run: docker compose --profile search up --build --detach --wait --wait-timeout 600
+      - name: Verify upload, access control and deletion over real HTTP
+        run: python scripts/integration_test.py 2>&1 | tee output/playwright/integration.log
+      - name: Verify real CLIP embeddings and semantic/hybrid access filters
+        run: python scripts/semantic_test.py 2>&1 | tee output/playwright/semantic.log
+      - name: Exercise desktop and mobile browser workflows
+        run: |
+          playwright-cli open http://localhost:15173 --browser=chrome
+          playwright-cli snapshot --filename=output/playwright/initial.yml
+          playwright-cli run-code --filename=.github/audit/browser-cloud.js | tee output/playwright/browser-cloud.log
+          python .github/audit/verify-cloud.py
+      - name: Capture diagnostics
+        if: always()
+        run: |
+          mkdir -p output/playwright
+          git rev-parse HEAD > output/playwright/source-revision.txt
+          docker compose --profile search ps --all > output/playwright/containers.txt
+          docker compose --profile search logs --no-color > output/playwright/compose.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: photo-cloud-runtime
+          path: output/playwright/
+          retention-days: 7
+      - name: Remove temporary cloud stack
+        if: always()
+        run: docker compose --profile search down --volumes --remove-orphans
