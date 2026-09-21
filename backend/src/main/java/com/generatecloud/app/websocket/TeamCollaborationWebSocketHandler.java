@@ -35,6 +35,10 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
     private final TeamMemberRepository teamMemberRepository;
     private final Map<Long, Set<WebSocketSession>> sessionsByTeam = new ConcurrentHashMap<>();
 
+    public int activeConnections() {
+        return sessionsByTeam.values().stream().mapToInt(Set::size).sum();
+    }
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         SessionBinding binding = bindSession(session.getUri());

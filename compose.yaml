@@ -1,92 +1,134 @@
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: generatecloud-postgres
+    image: pgvector/pgvector:0.8.2-pg16
     environment:
       POSTGRES_DB: generatecloud
       POSTGRES_USER: generatecloud
-      POSTGRES_PASSWORD: generatecloud
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-generatecloud}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U generatecloud -d generatecloud"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
+      interval: 5s
+      retries: 20
   minio:
-    image: minio/minio:latest
-    container_name: generatecloud-minio
-    command: server /data --console-address ":9001"
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    volumes:
-      - minio-data:/data
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
+    ports: ["127.0.0.1:${MINIO_PORT:-9000}:9000"]
+    volumes: ["minio-data:/data"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
+      interval: 5s
+      retries: 20
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: generatecloud
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-generatecloud}
+    ports: ["127.0.0.1:${RABBITMQ_PORT:-5672}:5672"]
+    volumes: ["rabbit-data:/var/lib/rabbitmq"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
       timeout: 5s
-      retries: 10
-
+      retries: 30
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: generatecloud-backend
+    build: ./backend
     depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     environment:
       PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/generatecloud
       SPRING_DATASOURCE_USERNAME: generatecloud
-      SPRING_DATASOURCE_PASSWORD: generatecloud
-      APP_JWT_SECRET: local-development-secret-key-change-me
-      APP_JWT_EXPIRATION_MS: 86400000
-      APP_SEED_ENABLED: "true"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-generatecloud}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-local-development-secret-key-change-me}
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
+      MEDIA_PIPELINE_ENABLED: "true"
+      UPLOAD_MAX_ACTIVE: ${UPLOAD_MAX_ACTIVE:-20}
       STORAGE_PROVIDER: s3
       STORAGE_BUCKET: generatecloud-assets
       STORAGE_REGION: us-east-1
       STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-9000}
       STORAGE_ACCESS_KEY: minioadmin
-      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
       STORAGE_PATH_STYLE_ACCESS: "true"
       STORAGE_AUTO_CREATE_BUCKET: "true"
       STORAGE_PREFIX: generate-cloud
-      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
-    ports:
-      - "127.0.0.1:8081:8080"
+      APP_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:5173},http://127.0.0.1:${FRONTEND_PORT:-5173}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: generatecloud
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-generatecloud}
+      SEMANTIC_SEARCH_ENABLED: ${SEMANTIC_SEARCH_ENABLED:-false}
+      CLIP_MODEL_VERSION: ${CLIP_MODEL_VERSION:-clip-vit-b32-openai-v1}
+      ENCODER_URL: http://encoder:8090
+      ENCODER_TOKEN: ${ENCODER_TOKEN:-local-encoder-token}
+      JAVA_TOOL_OPTIONS: -Xmx512m
+    ports: ["127.0.0.1:${API_PORT:-8081}:8080"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: generatecloud-frontend
+      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
+      interval: 5s
+      retries: 40
+    stop_grace_period: 30s
+  worker: &worker
+    build: { context: ./worker, target: media }
     depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:5173:80"
+      backend: { condition: service_healthy }
+    environment: &worker-env
+      DATABASE_URL: postgresql://generatecloud:${POSTGRES_PASSWORD:-generatecloud}@postgres:5432/generatecloud
+      RABBITMQ_URL: amqp://generatecloud:${RABBITMQ_PASSWORD:-generatecloud}@rabbitmq:5672/%2F
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_BUCKET: generatecloud-assets
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
+      STORAGE_PREFIX: generate-cloud
+      SEMANTIC_SEARCH_ENABLED: ${SEMANTIC_SEARCH_ENABLED:-false}
+      CLIP_MODEL_VERSION: ${CLIP_MODEL_VERSION:-clip-vit-b32-openai-v1}
+      WORKER_QUEUES: media.process,media.delete
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+    restart: unless-stopped
+    stop_grace_period: 30s
+  encoder:
+    profiles: [search]
+    build: { context: ./worker, dockerfile: Dockerfile.ml }
+    command: ["uvicorn", "app.encoder:app", "--host", "0.0.0.0", "--port", "8090"]
+    environment:
+      ENCODER_TOKEN: ${ENCODER_TOKEN:-local-encoder-token}
+      CLIP_MODEL_VERSION: ${CLIP_MODEL_VERSION:-clip-vit-b32-openai-v1}
+      TORCH_THREADS: "2"
+    volumes: ["model-cache:/home/worker/.cache"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
       interval: 10s
-      timeout: 5s
+      start_period: 120s
+      retries: 60
+  embedding-worker:
+    <<: *worker
+    profiles: [search]
+    build: { context: ./worker, dockerfile: Dockerfile.ml }
+    environment:
+      <<: *worker-env
+      WORKER_QUEUES: media.embed
+      TORCH_THREADS: "2"
+    volumes: ["model-cache:/home/worker/.cache"]
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend: { condition: service_healthy }
+    ports: ["127.0.0.1:${FRONTEND_PORT:-5173}:80"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:80/ >/dev/null 2>&1"]
+      interval: 10s
       retries: 10
-      start_period: 10s
-
 volumes:
   postgres-data:
   minio-data:
+  rabbit-data:
+  model-cache:

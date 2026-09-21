@@ -29,6 +29,8 @@ export interface ImageAsset {
   teamName: string | null
   uploader: Pick<UserProfile, 'id' | 'name'>
   createdAt: string
+  processingStatus: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED' | 'ABORTED' | 'DELETING' | 'DELETED'
+  embeddingStatus: 'NOT_REQUESTED' | 'QUEUED' | 'READY' | 'FAILED'
 }
 
 export interface ImagePage {

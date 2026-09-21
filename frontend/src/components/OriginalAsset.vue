@@ -13,7 +13,7 @@ function close() {
   controller?.abort()
   controller = undefined
   dialog.value?.close()
-  if (source.value) URL.revokeObjectURL(source.value)
+  if (source.value.startsWith('blob:')) URL.revokeObjectURL(source.value)
   source.value = ''
   error.value = ''
   loading.value = false
@@ -27,13 +27,21 @@ async function open() {
   loading.value = true
   try {
     const url = await fetchProtectedAsset(props.path, props.token ?? '', request.signal)
-    if (request.signal.aborted) URL.revokeObjectURL(url)
+    if (request.signal.aborted) {
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+    }
     else source.value = url
   } catch (cause) {
     if (!request.signal.aborted) error.value = cause instanceof Error ? cause.message : 'Image could not be loaded.'
   } finally {
     if (controller === request) loading.value = false
   }
+}
+
+function imageFailed() {
+  if (source.value.startsWith('blob:')) URL.revokeObjectURL(source.value)
+  source.value = ''
+  error.value = 'Image could not be loaded. The access link may have expired.'
 }
 
 watch(() => [props.path, props.token], close)
@@ -51,7 +59,8 @@ onBeforeUnmount(close)
       </div>
       <p v-if="loading" role="status">Loading original…</p>
       <p v-if="error" role="alert">{{ error }}</p>
-      <img v-if="source" :src="source" :alt="title" />
+      <button v-if="error" class="inline-link" type="button" @click="open">Retry image</button>
+      <img v-if="source" :src="source" :alt="title" @error="imageFailed" />
       <a v-if="source" class="inline-link" :href="source" :download="title">Download original</a>
     </dialog>
   </template>

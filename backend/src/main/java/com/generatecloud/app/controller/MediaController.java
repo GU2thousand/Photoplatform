@@ -28,6 +28,18 @@ public class MediaController {
     private final ImageService imageService;
     private final AuthService authService;
     private final StorageService storageService;
+    private final org.springframework.beans.factory.ObjectProvider<com.generatecloud.app.pipeline.DeliveryService> delivery;
+
+    @GetMapping("/{imageId}/url")
+    public java.util.Map<String,Object> url(@AuthenticationPrincipal AppUserPrincipal principal,
+            @PathVariable Long imageId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue="original") String variant,
+            jakarta.servlet.http.HttpServletResponse response) {
+        ImageAsset image = imageService.getAccessibleImage(imageId, authService.optionalUser(principal));
+        response.setHeader(HttpHeaders.CACHE_CONTROL,"private, no-store");
+        if (!image.getStorageLayout().equals("VERSIONED")) return java.util.Map.of("legacy",true);
+        return java.util.Map.of("url",delivery.getObject().url(image,variant),"expiresIn",60,"legacy",false);
+    }
 
     @GetMapping("/{imageId}")
     public ResponseEntity<Resource> original(
@@ -48,6 +60,10 @@ public class MediaController {
     }
 
     private ResponseEntity<Resource> build(ImageAsset image, boolean thumbnail) {
+        if (image.getStorageLayout().equals("VERSIONED")) {
+            return ResponseEntity.status(302).location(java.net.URI.create(delivery.getObject().url(image,thumbnail?"thumbnail":"original")))
+                    .header(HttpHeaders.CACHE_CONTROL,"private, no-store").build();
+        }
         StoredObject storedObject = thumbnail
                 ? storageService.loadThumbnail(image.getThumbnailFileName())
                 : storageService.loadOriginal(image.getStoredFileName());

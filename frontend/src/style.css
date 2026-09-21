@@ -760,3 +760,20 @@ label {
     flex-wrap: wrap;
   }
 }
+
+.library-row .inline-link,
+.review-row .inline-link,
+.image-card__body .inline-link {
+  display: inline-block;
+  margin-right: 12px;
+  margin-top: 6px;
+}
+
+.media-search summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.media-search[open] summary {
+  margin-bottom: 16px;
+}

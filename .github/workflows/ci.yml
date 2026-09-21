@@ -42,3 +42,81 @@ jobs:
       - name: Check dependency advisories
         working-directory: frontend
         run: npm audit --audit-level=high
+
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - name: Install locked worker and test dependencies
+        run: python -m pip install -r worker/requirements.txt
+      - name: Verify image processing and durable worker failure boundaries
+        env:
+          PYTHONPATH: worker
+        run: python -m unittest discover -s worker/tests -v
+      - name: Verify retrieval benchmark metric calculations
+        run: python -m unittest discover -s benchmarks/tests -v
+
+  pipeline-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: photoplatform-ci
+      APP_SEED_ENABLED: 'false'
+      SEMANTIC_SEARCH_ENABLED: 'false'
+      API_PORT: '18082'
+      POSTGRES_PORT: '15543'
+      MINIO_PORT: '19000'
+      RABBITMQ_PORT: '15673'
+      POSTGRES_PASSWORD: generatecloud
+      MINIO_PASSWORD: minioadmin
+      RABBITMQ_PASSWORD: generatecloud
+      TEST_API_URL: http://localhost:18082
+      TEST_DATABASE_URL: postgresql://generatecloud:generatecloud@localhost:15543/generatecloud
+      ALLOW_INTEGRATION_WRITES: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install locked integration test dependencies
+        run: python -m pip install -r worker/requirements.txt
+      - name: Build and start disposable PostgreSQL, MinIO, RabbitMQ, API and worker
+        run: docker compose up --build --detach --wait --wait-timeout 240 postgres minio rabbitmq backend worker
+      - name: Verify direct uploads, permissions, checksums, variants and deletion
+        run: |
+          mkdir -p artifacts
+          python scripts/integration_test.py 2>&1 | tee artifacts/integration.log
+      - name: Verify stale leases, retries, cancellation and orphan reconciliation
+        run: python scripts/fault_tests.py 2>&1 | tee artifacts/fault-tests.log
+      - name: Verify populated legacy schema migration with the same executable JAR
+        run: |
+          docker compose cp backend:/app/app.jar artifacts/migration-app.jar
+          python scripts/migration_test.py --jar artifacts/migration-app.jar --api-port 18083 --log-file artifacts/migration-api.log 2>&1 | tee artifacts/migration-test.log
+      - name: Collect service diagnostics
+        if: always()
+        run: |
+          mkdir -p artifacts
+          docker compose ps --all > artifacts/compose-ps.log
+          docker compose logs --no-color > artifacts/compose.log 2>&1
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-verification-logs
+          path: artifacts/*.log
+          retention-days: 7
+      - name: Remove disposable services and volumes
+        if: always()
+        run: docker compose down --volumes --remove-orphans

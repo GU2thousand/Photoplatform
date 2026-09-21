@@ -28,6 +28,7 @@ public class ImageController {
 
     private final ImageService imageService;
     private final AuthService authService;
+    private final com.generatecloud.app.pipeline.PipelineProperties pipeline;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ImageResponse upload(
@@ -40,6 +41,7 @@ public class ImageController {
             @RequestParam(defaultValue = "PRIVATE") Visibility visibility,
             @RequestParam(required = false) Long teamId
     ) {
+        if (pipeline.isEnabled()) throw new com.generatecloud.app.exception.BadRequestException("Use /api/uploads for direct uploads");
         return imageService.upload(
                 authService.requireUser(principal),
                 file,

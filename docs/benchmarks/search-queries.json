@@ -1,0 +1,802 @@
+[
+  {
+    "query": "airplane",
+    "relevant_media_ids": [
+      1513,
+      1514,
+      1515,
+      1516,
+      1517,
+      1518,
+      1519,
+      1520,
+      1521,
+      1522
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an airplane in the sky",
+    "relevant_media_ids": [
+      1513,
+      1514,
+      1515,
+      1516,
+      1517,
+      1518,
+      1519,
+      1520,
+      1521,
+      1522
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a passenger jet",
+    "relevant_media_ids": [
+      1513,
+      1514,
+      1515,
+      1516,
+      1517,
+      1518,
+      1519,
+      1520,
+      1521,
+      1522
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an aircraft",
+    "relevant_media_ids": [
+      1513,
+      1514,
+      1515,
+      1516,
+      1517,
+      1518,
+      1519,
+      1520,
+      1521,
+      1522
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a flying plane",
+    "relevant_media_ids": [
+      1513,
+      1514,
+      1515,
+      1516,
+      1517,
+      1518,
+      1519,
+      1520,
+      1521,
+      1522
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "automobile",
+    "relevant_media_ids": [
+      1523,
+      1524,
+      1525,
+      1526,
+      1527,
+      1528,
+      1529,
+      1530,
+      1531,
+      1532
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a car on the road",
+    "relevant_media_ids": [
+      1523,
+      1524,
+      1525,
+      1526,
+      1527,
+      1528,
+      1529,
+      1530,
+      1531,
+      1532
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a passenger vehicle",
+    "relevant_media_ids": [
+      1523,
+      1524,
+      1525,
+      1526,
+      1527,
+      1528,
+      1529,
+      1530,
+      1531,
+      1532
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a motorcar",
+    "relevant_media_ids": [
+      1523,
+      1524,
+      1525,
+      1526,
+      1527,
+      1528,
+      1529,
+      1530,
+      1531,
+      1532
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a small car",
+    "relevant_media_ids": [
+      1523,
+      1524,
+      1525,
+      1526,
+      1527,
+      1528,
+      1529,
+      1530,
+      1531,
+      1532
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "bird",
+    "relevant_media_ids": [
+      1533,
+      1534,
+      1535,
+      1536,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a bird with feathers",
+    "relevant_media_ids": [
+      1533,
+      1534,
+      1535,
+      1536,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a flying bird",
+    "relevant_media_ids": [
+      1533,
+      1534,
+      1535,
+      1536,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a small wild bird",
+    "relevant_media_ids": [
+      1533,
+      1534,
+      1535,
+      1536,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an animal with wings",
+    "relevant_media_ids": [
+      1533,
+      1534,
+      1535,
+      1536,
+      1537,
+      1538,
+      1539,
+      1540,
+      1541,
+      1542
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "cat",
+    "relevant_media_ids": [
+      1543,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550,
+      1551,
+      1552
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a pet cat",
+    "relevant_media_ids": [
+      1543,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550,
+      1551,
+      1552
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a kitten",
+    "relevant_media_ids": [
+      1543,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550,
+      1551,
+      1552
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a feline animal",
+    "relevant_media_ids": [
+      1543,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550,
+      1551,
+      1552
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a domestic cat",
+    "relevant_media_ids": [
+      1543,
+      1544,
+      1545,
+      1546,
+      1547,
+      1548,
+      1549,
+      1550,
+      1551,
+      1552
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "deer",
+    "relevant_media_ids": [
+      1553,
+      1554,
+      1555,
+      1556,
+      1557,
+      1559,
+      1560,
+      1561,
+      1562,
+      1563
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a wild deer",
+    "relevant_media_ids": [
+      1553,
+      1554,
+      1555,
+      1556,
+      1557,
+      1559,
+      1560,
+      1561,
+      1562,
+      1563
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a deer in nature",
+    "relevant_media_ids": [
+      1553,
+      1554,
+      1555,
+      1556,
+      1557,
+      1559,
+      1560,
+      1561,
+      1562,
+      1563
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an animal with antlers",
+    "relevant_media_ids": [
+      1553,
+      1554,
+      1555,
+      1556,
+      1557,
+      1559,
+      1560,
+      1561,
+      1562,
+      1563
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a woodland deer",
+    "relevant_media_ids": [
+      1553,
+      1554,
+      1555,
+      1556,
+      1557,
+      1559,
+      1560,
+      1561,
+      1562,
+      1563
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "dog",
+    "relevant_media_ids": [
+      1564,
+      1566,
+      1567,
+      1568,
+      1569,
+      1570,
+      1571,
+      1572,
+      1573,
+      1574
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a pet dog",
+    "relevant_media_ids": [
+      1564,
+      1566,
+      1567,
+      1568,
+      1569,
+      1570,
+      1571,
+      1572,
+      1573,
+      1574
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a puppy",
+    "relevant_media_ids": [
+      1564,
+      1566,
+      1567,
+      1568,
+      1569,
+      1570,
+      1571,
+      1572,
+      1573,
+      1574
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a canine animal",
+    "relevant_media_ids": [
+      1564,
+      1566,
+      1567,
+      1568,
+      1569,
+      1570,
+      1571,
+      1572,
+      1573,
+      1574
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a domestic dog",
+    "relevant_media_ids": [
+      1564,
+      1566,
+      1567,
+      1568,
+      1569,
+      1570,
+      1571,
+      1572,
+      1573,
+      1574
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "frog",
+    "relevant_media_ids": [
+      1575,
+      1577,
+      1578,
+      1579,
+      1580,
+      1581,
+      1582,
+      1583,
+      1584,
+      1585
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a frog",
+    "relevant_media_ids": [
+      1575,
+      1577,
+      1578,
+      1579,
+      1580,
+      1581,
+      1582,
+      1583,
+      1584,
+      1585
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a green amphibian",
+    "relevant_media_ids": [
+      1575,
+      1577,
+      1578,
+      1579,
+      1580,
+      1581,
+      1582,
+      1583,
+      1584,
+      1585
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a small frog",
+    "relevant_media_ids": [
+      1575,
+      1577,
+      1578,
+      1579,
+      1580,
+      1581,
+      1582,
+      1583,
+      1584,
+      1585
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an amphibian animal",
+    "relevant_media_ids": [
+      1575,
+      1577,
+      1578,
+      1579,
+      1580,
+      1581,
+      1582,
+      1583,
+      1584,
+      1585
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "horse",
+    "relevant_media_ids": [
+      1587,
+      1588,
+      1590,
+      1591,
+      1593,
+      1595,
+      1596,
+      1597,
+      1598,
+      1599
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a horse",
+    "relevant_media_ids": [
+      1587,
+      1588,
+      1590,
+      1591,
+      1593,
+      1595,
+      1596,
+      1597,
+      1598,
+      1599
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a horse in a field",
+    "relevant_media_ids": [
+      1587,
+      1588,
+      1590,
+      1591,
+      1593,
+      1595,
+      1596,
+      1597,
+      1598,
+      1599
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "an equine animal",
+    "relevant_media_ids": [
+      1587,
+      1588,
+      1590,
+      1591,
+      1593,
+      1595,
+      1596,
+      1597,
+      1598,
+      1599
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a riding horse",
+    "relevant_media_ids": [
+      1587,
+      1588,
+      1590,
+      1591,
+      1593,
+      1595,
+      1596,
+      1597,
+      1598,
+      1599
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "ship",
+    "relevant_media_ids": [
+      1600,
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a ship on water",
+    "relevant_media_ids": [
+      1600,
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a large boat",
+    "relevant_media_ids": [
+      1600,
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a vessel at sea",
+    "relevant_media_ids": [
+      1600,
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a sailing ship",
+    "relevant_media_ids": [
+      1600,
+      1601,
+      1602,
+      1603,
+      1604,
+      1605,
+      1606,
+      1607,
+      1608,
+      1609
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "truck",
+    "relevant_media_ids": [
+      1610,
+      1613,
+      1615,
+      1616,
+      1617,
+      1618,
+      1619,
+      1620,
+      1621,
+      1623
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a truck on the road",
+    "relevant_media_ids": [
+      1610,
+      1613,
+      1615,
+      1616,
+      1617,
+      1618,
+      1619,
+      1620,
+      1621,
+      1623
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a freight vehicle",
+    "relevant_media_ids": [
+      1610,
+      1613,
+      1615,
+      1616,
+      1617,
+      1618,
+      1619,
+      1620,
+      1621,
+      1623
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a delivery truck",
+    "relevant_media_ids": [
+      1610,
+      1613,
+      1615,
+      1616,
+      1617,
+      1618,
+      1619,
+      1620,
+      1621,
+      1623
+    ],
+    "scope": "mine"
+  },
+  {
+    "query": "a large lorry",
+    "relevant_media_ids": [
+      1610,
+      1613,
+      1615,
+      1616,
+      1617,
+      1618,
+      1619,
+      1620,
+      1621,
+      1623
+    ],
+    "scope": "mine"
+  }
+]

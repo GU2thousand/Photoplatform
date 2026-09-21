@@ -1,4 +1,4 @@
-const apiBase = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+const apiBase = (import.meta.env?.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 export class ApiError extends Error {
   readonly status: number
@@ -52,6 +52,7 @@ export function buildApiUrl(path: string): string {
 }
 
 export function buildAssetUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path
   return new URL(buildApiUrl(path), window.location.origin).toString()
 }
 
@@ -62,8 +63,18 @@ export function expireLegacyMediaCookie() {
 }
 
 export async function fetchProtectedAsset(path: string, token: string, signal: AbortSignal): Promise<string> {
-  const response = await fetch(buildAssetUrl(path), {
-    headers: { Authorization: `Bearer ${token}` },
+  const match = path.match(/^\/api\/files\/(\d+)(\/thumbnail)?$/)
+  if (match) {
+    const delivery = await apiRequest<{ legacy: boolean; url?: string }>(
+      `/api/files/${match[1]}/url?variant=${match[2] ? 'thumbnail' : 'original'}`, { signal, cache: 'no-store' }, token || undefined,
+    )
+    signal.throwIfAborted()
+    if (!delivery.legacy && delivery.url) return delivery.url
+  }
+  const assetUrl = buildAssetUrl(path)
+  const apiOrigin = new URL(buildApiUrl('/'), window.location.origin).origin
+  const response = await fetch(assetUrl, {
+    headers: token && new URL(assetUrl).origin === apiOrigin ? { Authorization: `Bearer ${token}` } : {},
     credentials: 'omit',
     cache: 'no-store',
     signal,

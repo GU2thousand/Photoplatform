@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { apiRequest, buildWebSocketUrl, expireLegacyMediaCookie } from './api'
 import AssetImage from './components/AssetImage.vue'
+import MediaSearch from './components/MediaSearch.vue'
+import { uploadDirect } from './directUpload'
 import OriginalAsset from './components/OriginalAsset.vue'
 import { createTeamConnection, type ConnectionState } from './teamConnection'
 import type {
@@ -16,6 +18,14 @@ import type {
   ViewKey,
   Visibility,
 } from './types'
+
+const capabilities = ref({ directUpload: false, semanticSearch: false, maxUploadBytes: 15728640 })
+const uploadStage = ref('Uploading…')
+const uploadKey = ref(crypto.randomUUID())
+let uploadController: AbortController | undefined
+let refreshTimer: number | undefined
+let refreshingProcessing = false
+const duplicateNotice = ref('')
 
 const storageKey = 'generate-cloud.session'
 
@@ -149,6 +159,12 @@ const availableViews = computed(() => {
 let noticeTimer: number | undefined
 
 onMounted(async () => {
+  try {
+    capabilities.value = await apiRequest('/api/public/capabilities')
+  } catch {
+    setNotice('Cloud upload features are unavailable. Standard uploads are still available.', 'error')
+  }
+  refreshTimer = window.setInterval(refreshProcessingImages, 4000)
   expireLegacyMediaCookie()
   teamConnection.setOnline(navigator.onLine)
   window.addEventListener('online', updateNetworkState)
@@ -161,6 +177,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   teamConnection.stop()
+  clearInterval(refreshTimer)
+  uploadController?.abort()
   galleryRequest?.abort()
   window.removeEventListener('online', updateNetworkState)
   window.removeEventListener('offline', updateNetworkState)
@@ -205,10 +223,14 @@ function formatDate(value: string) {
 }
 
 async function restoreSession() {
+  const token = session.token
   try {
-    session.currentUser = await apiRequest<UserProfile>('/api/auth/me', {}, session.token)
+    const user = await apiRequest<UserProfile>('/api/auth/me', {}, token)
+    if (session.token !== token) return
+    session.currentUser = user
     await hydratePrivateData()
   } catch {
+    if (session.token !== token) return
     clearSession(false)
     setNotice('Previous session expired. Please sign in again.', 'error')
   }
@@ -305,6 +327,11 @@ async function applyAuth(response: AuthResponse) {
 }
 
 function clearSession(showMessage = true) {
+  uploadController?.abort()
+  uploadController = undefined
+  busy.upload = false
+  resetUploadForm()
+  duplicateNotice.value = ''
   session.token = ''
   session.currentUser = null
   localStorage.removeItem(storageKey)
@@ -372,6 +399,7 @@ async function loadAdminData() {
 }
 
 async function submitUpload() {
+  if (busy.upload || !isAuthenticated.value) return
   if (!uploadForm.file) {
     setNotice('Select an image before uploading.', 'error')
     return
@@ -394,37 +422,109 @@ async function submitUpload() {
     payload.append('teamId', String(teamId))
   }
 
+  const token = session.token
+  const controller = new AbortController()
+  uploadController = controller
   busy.upload = true
+  uploadStage.value = 'Uploading…'
   try {
-    const image = await apiRequest<ImageAsset>('/api/images', {
-      method: 'POST',
-      body: payload,
-    }, session.token)
+    let pendingModeration = false
+    let processing = false
+    if (capabilities.value.directUpload) {
+      if (uploadForm.file.size > capabilities.value.maxUploadBytes) throw new Error('Image exceeds the upload size limit.')
+      const result = await uploadDirect(uploadForm.file, {
+        title: uploadForm.title, description: uploadForm.description, category: uploadForm.category,
+        tags: uploadForm.tags, visibility: uploadForm.visibility, teamId,
+      }, uploadKey.value, (path, options) => apiRequest(path, options, token),
+      stage => { if (!controller.signal.aborted) uploadStage.value = stage }, controller.signal)
+      if (['FAILED', 'ABORTED', 'DELETING', 'DELETED'].includes(result.status)) {
+        throw new Error('This upload is no longer active. Select the file again to start a new upload.')
+      }
+      processing = result.status !== 'READY'
+      pendingModeration = uploadForm.visibility === 'PUBLIC' && !isAdmin.value
+    } else {
+      const image = await apiRequest<ImageAsset>('/api/images', { method: 'POST', body: payload, signal: controller.signal }, token)
+      pendingModeration = image.moderationStatus === 'PENDING'
+    }
 
+    if (controller.signal.aborted || session.token !== token) return
     resetUploadForm()
     await refreshPublicGallery()
+    if (controller.signal.aborted || session.token !== token) return
     await loadPersonalImages()
+    if (controller.signal.aborted || session.token !== token) return
     if (teamId) {
       await loadTeamImages(teamId)
     }
+    if (controller.signal.aborted || session.token !== token) return
     if (isAdmin.value) {
       await loadAdminData()
     }
 
+    if (controller.signal.aborted || session.token !== token) return
     setNotice(
-      image.moderationStatus === 'PENDING'
+      processing ? 'Upload received. Your image is being processed.' : pendingModeration
         ? 'Upload received. It is waiting for admin approval.'
         : 'Image uploaded successfully.',
       'success',
     )
   } catch (error) {
-    setNotice(asMessage(error), 'error')
+    if (!controller.signal.aborted && session.token === token) setNotice(asMessage(error), 'error')
   } finally {
-    busy.upload = false
+    if (uploadController === controller) {
+      busy.upload = false
+      uploadController = undefined
+    }
+  }
+}
+
+async function refreshProcessingImages() {
+  if (!isAuthenticated.value || refreshingProcessing) return
+  const processing = [...personalImages.value, ...teamImages.value, ...pendingImages.value].some(image =>
+    ['UPLOADING', 'PROCESSING'].includes(image.processingStatus) || image.embeddingStatus === 'QUEUED')
+  // Team uploads may originate in another browser. Refresh the active library periodically.
+  if (!processing && !['team', 'admin'].includes(activeView.value)) return
+  refreshingProcessing = true
+  const token = session.token
+  try {
+    await loadPersonalImages()
+    if (session.token !== token) return
+    if (activeTeamId.value) await loadTeamImages(activeTeamId.value)
+    if (session.token !== token) return
+    if (isAdmin.value) await loadAdminData()
+  } catch { /* Explicit retry remains available in the library. */ }
+  finally { refreshingProcessing = false }
+}
+
+async function retryProcessing(id: number) {
+  const token = session.token
+  try {
+    await apiRequest(`/api/images/${id}/retry`, { method: 'POST' }, token)
+    if (session.token !== token) return
+    await loadPersonalImages()
+    if (session.token !== token) return
+    if (activeTeamId.value) await loadTeamImages(activeTeamId.value)
+    if (session.token === token && isAdmin.value) await loadAdminData()
+  } catch (error) { setNotice(asMessage(error), 'error') }
+}
+
+async function findDuplicates(id: number) {
+  const token = session.token
+  duplicateNotice.value = 'Finding similar images…'
+  try {
+    const matches = await apiRequest<Array<{ title: string; exact: boolean }>>(`/api/images/${id}/duplicates`, {}, token)
+    if (session.token !== token) return
+    duplicateNotice.value = matches.length ? `Possible matches: ${matches.map(match => `${match.title} (${match.exact ? 'identical' : 'similar'})`).join(', ')}. Nothing has been deleted.` : 'No similar images found in images you can access.'
+  } catch (error) {
+    if (session.token === token) {
+      duplicateNotice.value = ''
+      setNotice(asMessage(error), 'error')
+    }
   }
 }
 
 function resetUploadForm() {
+  uploadKey.value = crypto.randomUUID()
   uploadForm.title = ''
   uploadForm.description = ''
   uploadForm.category = 'General'
@@ -436,7 +536,12 @@ function resetUploadForm() {
   }
 }
 
+watch(() => [uploadForm.title, uploadForm.description, uploadForm.category, uploadForm.tags, uploadForm.visibility, uploadForm.teamId], () => {
+  uploadKey.value = crypto.randomUUID()
+}, { flush: 'sync' })
+
 function handleFileChange(event: Event) {
+  uploadKey.value = crypto.randomUUID()
   const input = event.target as HTMLInputElement
   uploadForm.file = input.files?.[0] ?? null
 }
@@ -634,7 +739,9 @@ function asMessage(error: unknown): string {
       {{ notice.text }}
     </p>
 
+    <p v-if="duplicateNotice" role="status" class="notice">{{ duplicateNotice }}</p>
     <main class="workspace">
+      <MediaSearch v-if="capabilities.directUpload" :token="session.token || undefined" :semantic="capabilities.semanticSearch" />
       <section v-show="activeView === 'public'" class="surface">
         <div class="section-header">
           <div>
@@ -699,26 +806,26 @@ function asMessage(error: unknown): string {
           <form class="upload-panel" @submit.prevent="submitUpload">
             <label>
               <span>Title</span>
-              <input v-model="uploadForm.title" type="text" placeholder="Campaign cover shot" required />
+              <input :disabled="busy.upload" v-model="uploadForm.title" type="text" placeholder="Campaign cover shot" required />
             </label>
             <label>
               <span>Description</span>
-              <textarea v-model="uploadForm.description" rows="3" placeholder="What is this image used for?" />
+              <textarea :disabled="busy.upload" v-model="uploadForm.description" rows="3" placeholder="What is this image used for?" />
             </label>
             <div class="form-grid">
               <label>
                 <span>Category</span>
-                <input v-model="uploadForm.category" type="text" placeholder="Marketing" />
+                <input :disabled="busy.upload" v-model="uploadForm.category" type="text" placeholder="Marketing" />
               </label>
               <label>
                 <span>Tags</span>
-                <input v-model="uploadForm.tags" type="text" placeholder="launch, hero, product" />
+                <input :disabled="busy.upload" v-model="uploadForm.tags" type="text" placeholder="launch, hero, product" />
               </label>
             </div>
             <div class="form-grid">
               <label>
                 <span>Visibility</span>
-                <select v-model="uploadForm.visibility">
+                <select v-model="uploadForm.visibility" :disabled="busy.upload">
                   <option value="PRIVATE">Private</option>
                   <option value="PUBLIC">Public</option>
                   <option value="TEAM">Team</option>
@@ -726,7 +833,7 @@ function asMessage(error: unknown): string {
               </label>
               <label>
                 <span>Team</span>
-                <select v-model="uploadForm.teamId" :disabled="uploadForm.visibility !== 'TEAM'">
+                <select v-model="uploadForm.teamId" :disabled="busy.upload || uploadForm.visibility !== 'TEAM'">
                   <option :value="null">Select team</option>
                   <option v-for="team in teams" :key="team.id" :value="team.id">
                     {{ team.name }}
@@ -736,10 +843,10 @@ function asMessage(error: unknown): string {
             </div>
             <label>
               <span>Image File</span>
-              <input ref="uploadInput" type="file" accept="image/*" @change="handleFileChange" />
+              <input :disabled="busy.upload" ref="uploadInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" @change="handleFileChange" />
             </label>
             <button class="button" type="submit" :disabled="busy.upload">
-              {{ busy.upload ? 'Uploading...' : 'Upload Image' }}
+              {{ busy.upload ? uploadStage : 'Upload Image' }}
             </button>
           </form>
         </div>
@@ -754,7 +861,8 @@ function asMessage(error: unknown): string {
 
           <div class="stack-list">
             <article v-for="image in personalImages" :key="image.id" class="library-row">
-              <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+              <AssetImage v-if="image.processingStatus === 'READY'" :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+              <div v-else class="asset-placeholder" role="status">{{ image.processingStatus.toLowerCase().replace(/_/g, ' ') }}</div>
               <div>
                 <div class="library-row__meta">
                   <span class="tag">{{ image.visibility }}</span>
@@ -765,7 +873,9 @@ function asMessage(error: unknown): string {
                 <h3>{{ image.title }}</h3>
                 <p>{{ image.description }}</p>
                 <small>{{ formatDate(image.createdAt) }}</small>
-                <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+                <OriginalAsset v-if="image.processingStatus === 'READY'" :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+                <button v-if="image.processingStatus === 'FAILED' && (isAdmin || image.uploader.id === session.currentUser?.id)" class="inline-link" type="button" @click="retryProcessing(image.id)">Retry processing</button>
+                <button v-if="capabilities.directUpload && image.processingStatus === 'READY'" class="inline-link" type="button" @click="findDuplicates(image.id)">Find similar images</button>
               </div>
               <button class="button button--ghost" type="button" @click="deleteImage(image.id)">
                 Delete
@@ -840,7 +950,8 @@ function asMessage(error: unknown): string {
 
           <div class="gallery-grid gallery-grid--compact">
             <article v-for="image in teamImages" :key="image.id" class="image-card">
-              <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+              <AssetImage v-if="image.processingStatus === 'READY'" :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+              <div v-else class="asset-placeholder" role="status">{{ image.processingStatus.toLowerCase().replace(/_/g, ' ') }}</div>
               <div class="image-card__body">
                 <div class="image-card__meta">
                   <span>{{ image.category }}</span>
@@ -848,7 +959,9 @@ function asMessage(error: unknown): string {
                 </div>
                 <h3>{{ image.title }}</h3>
                 <p>{{ image.description }}</p>
-                <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+                <OriginalAsset v-if="image.processingStatus === 'READY'" :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+                <button v-if="image.processingStatus === 'FAILED' && (isAdmin || image.uploader.id === session.currentUser?.id)" class="inline-link" type="button" @click="retryProcessing(image.id)">Retry processing</button>
+                <button v-if="capabilities.directUpload && image.processingStatus === 'READY'" class="inline-link" type="button" @click="findDuplicates(image.id)">Find similar images</button>
                 <div class="tag-row">
                   <span v-for="tag in image.tags" :key="tag" class="tag">{{ tag }}</span>
                 </div>
@@ -899,7 +1012,8 @@ function asMessage(error: unknown): string {
 
         <div class="stack-list">
           <article v-for="image in pendingImages" :key="image.id" class="review-row">
-            <AssetImage :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+            <AssetImage v-if="image.processingStatus === 'READY'" :path="image.thumbnailUrl" :alt="image.title" :token="assetToken(image)" />
+              <div v-else class="asset-placeholder" role="status">{{ image.processingStatus.toLowerCase().replace(/_/g, ' ') }}</div>
             <div>
               <div class="library-row__meta">
                 <span class="tag">{{ image.category }}</span>
@@ -908,7 +1022,9 @@ function asMessage(error: unknown): string {
               <h3>{{ image.title }}</h3>
               <p>{{ image.description }}</p>
               <small>{{ image.uploader.name }}</small>
-              <OriginalAsset :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+              <OriginalAsset v-if="image.processingStatus === 'READY'" :path="image.imageUrl" :title="image.title" :token="assetToken(image)" />
+                <button v-if="image.processingStatus === 'FAILED' && (isAdmin || image.uploader.id === session.currentUser?.id)" class="inline-link" type="button" @click="retryProcessing(image.id)">Retry processing</button>
+                <button v-if="capabilities.directUpload && image.processingStatus === 'READY'" class="inline-link" type="button" @click="findDuplicates(image.id)">Find similar images</button>
             </div>
             <div class="review-actions">
               <button class="button" type="button" @click="moderateImage(image.id, 'APPROVED')">

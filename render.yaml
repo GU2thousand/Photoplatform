@@ -1,15 +1,15 @@
+# Review docs/cloud-upgrade.md before syncing this Blueprint. This file provisions
+# paid services only when you explicitly deploy it; RabbitMQ and S3 are external.
 services:
   - type: web
     name: photoplatform-api
     runtime: docker
-    plan: starter
+    plan: 1c-2g
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    healthCheckPath: /actuator/health
+    healthCheckPath: /readyz
     buildFilter:
-      paths:
-        - backend/**
-        - render.yaml
+      paths: [backend/**, render.yaml]
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
@@ -20,7 +20,13 @@ services:
       - key: APP_JWT_SECRET
         generateValue: true
       - key: APP_SEED_ENABLED
-        value: false
+        value: "false"
+      - key: MEDIA_PIPELINE_ENABLED
+        value: "true"
+      - key: SEMANTIC_SEARCH_ENABLED
+        value: "false"
+      - key: MANAGEMENT_PORT
+        value: "9091"
       - key: STORAGE_PROVIDER
         value: s3
       - key: STORAGE_BUCKET
@@ -29,18 +35,75 @@ services:
         sync: false
       - key: STORAGE_ENDPOINT
         sync: false
+      - key: STORAGE_PUBLIC_ENDPOINT
+        sync: false
       - key: STORAGE_ACCESS_KEY
         sync: false
       - key: STORAGE_SECRET_KEY
         sync: false
       - key: STORAGE_PATH_STYLE_ACCESS
-        value: false
+        value: "false"
       - key: STORAGE_AUTO_CREATE_BUCKET
-        value: false
+        value: "false"
       - key: STORAGE_PREFIX
-        value: photoplatform
+        value: generate-cloud
       - key: APP_CORS_ALLOWED_ORIGINS
         sync: false
+      - key: RABBITMQ_HOST
+        sync: false
+      - key: RABBITMQ_PORT
+        value: "5671"
+      - key: RABBITMQ_USER
+        sync: false
+      - key: RABBITMQ_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_VIRTUAL_HOST
+        sync: false
+      - key: SPRING_RABBITMQ_SSL_ENABLED
+        value: "true"
+      - key: SPRING_RABBITMQ_SSL_VERIFY_HOSTNAME
+        value: "true"
+      - key: SPRING_RABBITMQ_SSL_VALIDATE_SERVER_CERTIFICATE
+        value: "true"
+
+  - type: worker
+    name: photoplatform-media-worker
+    runtime: docker
+    plan: 1c-2g
+    dockerfilePath: ./worker/Dockerfile
+    dockerContext: ./worker
+    buildFilter:
+      paths: [worker/**, render.yaml]
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: photoplatform-db
+          property: connectionString
+      # Use the same managed broker/vhost as the API, URL-encoding credentials.
+      - key: RABBITMQ_URL
+        sync: false
+      - key: WORKER_QUEUES
+        value: media.process,media.delete
+      - key: SEMANTIC_SEARCH_ENABLED
+        value: "false"
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: OPENBLAS_NUM_THREADS
+        value: "1"
+      - key: STORAGE_BUCKET
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_BUCKET}
+      - key: STORAGE_REGION
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_REGION}
+      - key: STORAGE_ENDPOINT
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_ENDPOINT}
+      - key: STORAGE_ACCESS_KEY
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_ACCESS_KEY}
+      - key: STORAGE_SECRET_KEY
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_SECRET_KEY}
+      - key: STORAGE_PATH_STYLE_ACCESS
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_PATH_STYLE_ACCESS}
+      - key: STORAGE_PREFIX
+        fromService: {type: web, name: photoplatform-api, envVarKey: STORAGE_PREFIX}
 
   - type: web
     name: photoplatform-web
@@ -49,16 +112,19 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     buildFilter:
-      paths:
-        - frontend/**
-        - render.yaml
+      paths: [frontend/**, render.yaml]
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: VITE_API_BASE_URL
         sync: false
     headers:
       - path: /*
         name: X-Frame-Options
         value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
     routes:
       - type: rewrite
         source: /*
@@ -66,6 +132,8 @@ services:
 
 databases:
   - name: photoplatform-db
-    plan: basic-256mb
+    plan: 0.5c-1g
+    postgresMajorVersion: "16"
     databaseName: photoplatform
     user: photoplatform
+    ipAllowList: []
