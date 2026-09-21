@@ -101,6 +101,8 @@ jobs:
           python scripts/integration_test.py 2>&1 | tee artifacts/integration.log
       - name: Verify stale leases, retries, cancellation and orphan reconciliation
         run: python scripts/fault_tests.py 2>&1 | tee artifacts/fault-tests.log
+      - name: Verify durable publication through a real RabbitMQ outage
+        run: python scripts/broker_recovery_test.py --project "$COMPOSE_PROJECT_NAME" 2>&1 | tee artifacts/broker-recovery.log
       - name: Verify populated legacy schema migration with the same executable JAR
         run: |
           docker compose cp backend:/app/app.jar artifacts/migration-app.jar

@@ -6,13 +6,13 @@
       "recall@5": 0.12,
       "recall@10": 0.24,
       "ndcg@10": 0.24,
-      "p95LatencyMs": 30.613221201929246,
+      "p95LatencyMs": 28.48958936519921,
       "perQuery": [
         {
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 27.283750008791685,
+          "latencyMs": 28.381124953739345,
           "query": "airplane",
           "retrieved": [
             1513,
@@ -31,7 +31,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 10.981208994053304,
+          "latencyMs": 23.578750027809292,
           "query": "an airplane in the sky",
           "retrieved": []
         },
@@ -39,7 +39,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.592165980488062,
+          "latencyMs": 14.570333005394787,
           "query": "a passenger jet",
           "retrieved": []
         },
@@ -47,7 +47,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.8387090102769434,
+          "latencyMs": 16.835750022437423,
           "query": "an aircraft",
           "retrieved": []
         },
@@ -55,7 +55,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 8.828749996609986,
+          "latencyMs": 13.510334014426917,
           "query": "a flying plane",
           "retrieved": []
         },
@@ -63,7 +63,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 67.85012502223253,
+          "latencyMs": 25.359542050864547,
           "query": "automobile",
           "retrieved": [
             1523,
@@ -82,7 +82,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 9.53633402241394,
+          "latencyMs": 31.135750003159046,
           "query": "a car on the road",
           "retrieved": []
         },
@@ -90,7 +90,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 7.351249980274588,
+          "latencyMs": 28.57833297457546,
           "query": "a passenger vehicle",
           "retrieved": []
         },
@@ -98,7 +98,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 20.007209037430584,
+          "latencyMs": 11.777250037994236,
           "query": "a motorcar",
           "retrieved": []
         },
@@ -106,7 +106,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.882999965455383,
+          "latencyMs": 11.349750042427331,
           "query": "a small car",
           "retrieved": []
         },
@@ -114,7 +114,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 24.973749998025596,
+          "latencyMs": 26.477457955479622,
           "query": "bird",
           "retrieved": [
             1533,
@@ -133,7 +133,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.0313750291243196,
+          "latencyMs": 10.90433303033933,
           "query": "a bird with feathers",
           "retrieved": []
         },
@@ -141,7 +141,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.11958303488791,
+          "latencyMs": 15.72237501386553,
           "query": "a flying bird",
           "retrieved": []
         },
@@ -149,7 +149,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.254916963167489,
+          "latencyMs": 15.52291598636657,
           "query": "a small wild bird",
           "retrieved": []
         },
@@ -157,7 +157,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.187749968376011,
+          "latencyMs": 22.722500027157366,
           "query": "an animal with wings",
           "retrieved": []
         },
@@ -165,7 +165,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 14.421499974559993,
+          "latencyMs": 30.98595899064094,
           "query": "cat",
           "retrieved": [
             1543,
@@ -184,7 +184,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 7.647207996342331,
+          "latencyMs": 12.372584023978561,
           "query": "a pet cat",
           "retrieved": []
         },
@@ -192,7 +192,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.830542009789497,
+          "latencyMs": 13.604875013697892,
           "query": "a kitten",
           "retrieved": []
         },
@@ -200,7 +200,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.900999986100942,
+          "latencyMs": 10.01683302456513,
           "query": "a feline animal",
           "retrieved": []
         },
@@ -208,7 +208,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.213999946136028,
+          "latencyMs": 15.464375028386712,
           "query": "a domestic cat",
           "retrieved": []
         },
@@ -216,7 +216,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 17.54058396909386,
+          "latencyMs": 16.417000035289675,
           "query": "deer",
           "retrieved": [
             1553,
@@ -235,7 +235,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.529124977532774,
+          "latencyMs": 11.814749974291772,
           "query": "a wild deer",
           "retrieved": []
         },
@@ -243,7 +243,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.9096660008654,
+          "latencyMs": 12.039000052027404,
           "query": "a deer in nature",
           "retrieved": []
         },
@@ -251,7 +251,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.333416047506034,
+          "latencyMs": 13.678000017534941,
           "query": "an animal with antlers",
           "retrieved": []
         },
@@ -259,7 +259,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 11.57516601961106,
+          "latencyMs": 11.789457988925278,
           "query": "a woodland deer",
           "retrieved": []
         },
@@ -267,7 +267,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 33.337333996314555,
+          "latencyMs": 17.775333020836115,
           "query": "dog",
           "retrieved": [
             1564,
@@ -286,7 +286,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 8.039250038564205,
+          "latencyMs": 13.32179200835526,
           "query": "a pet dog",
           "retrieved": []
         },
@@ -294,7 +294,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 7.671958010178059,
+          "latencyMs": 9.794750018045306,
           "query": "a puppy",
           "retrieved": []
         },
@@ -302,7 +302,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.874041991773993,
+          "latencyMs": 12.863417039625347,
           "query": "a canine animal",
           "retrieved": []
         },
@@ -310,7 +310,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.251208018511534,
+          "latencyMs": 13.641832978464663,
           "query": "a domestic dog",
           "retrieved": []
         },
@@ -318,7 +318,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 15.744458010885864,
+          "latencyMs": 15.464166004676372,
           "query": "frog",
           "retrieved": [
             1575,
@@ -337,7 +337,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 15.865041001234204,
+          "latencyMs": 20.606165984645486,
           "query": "a frog",
           "retrieved": [
             1575,
@@ -356,7 +356,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 15.25845896685496,
+          "latencyMs": 11.364332982338965,
           "query": "a green amphibian",
           "retrieved": []
         },
@@ -364,7 +364,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 14.948958007153124,
+          "latencyMs": 10.058624960947782,
           "query": "a small frog",
           "retrieved": []
         },
@@ -372,7 +372,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 12.735042022541165,
+          "latencyMs": 11.605750012677163,
           "query": "an amphibian animal",
           "retrieved": []
         },
@@ -380,7 +380,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 38.22687501087785,
+          "latencyMs": 15.813459001947194,
           "query": "horse",
           "retrieved": [
             1587,
@@ -399,7 +399,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 19.463917007669806,
+          "latencyMs": 20.352624997030944,
           "query": "a horse",
           "retrieved": [
             1587,
@@ -418,7 +418,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.322417000774294,
+          "latencyMs": 20.0897500035353,
           "query": "a horse in a field",
           "retrieved": []
         },
@@ -426,7 +426,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.959832982625812,
+          "latencyMs": 11.74454198917374,
           "query": "an equine animal",
           "retrieved": []
         },
@@ -434,7 +434,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.091416998766363,
+          "latencyMs": 14.002916985191405,
           "query": "a riding horse",
           "retrieved": []
         },
@@ -442,7 +442,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 26.669499988202006,
+          "latencyMs": 18.545292026828974,
           "query": "ship",
           "retrieved": [
             1600,
@@ -461,7 +461,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 15.869583003222942,
+          "latencyMs": 19.130208005663007,
           "query": "a ship on water",
           "retrieved": []
         },
@@ -469,7 +469,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 7.114500040188432,
+          "latencyMs": 18.06874998146668,
           "query": "a large boat",
           "retrieved": []
         },
@@ -477,7 +477,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.599040993023664,
+          "latencyMs": 16.017250018194318,
           "query": "a vessel at sea",
           "retrieved": []
         },
@@ -485,7 +485,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 4.7387920203618705,
+          "latencyMs": 18.896958034019917,
           "query": "a sailing ship",
           "retrieved": []
         },
@@ -493,7 +493,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 19.231332989875227,
+          "latencyMs": 22.74237497476861,
           "query": "truck",
           "retrieved": [
             1610,
@@ -512,7 +512,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 8.359208004549146,
+          "latencyMs": 14.986499969381839,
           "query": "a truck on the road",
           "retrieved": []
         },
@@ -520,7 +520,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 5.6754169636406,
+          "latencyMs": 13.107792008668184,
           "query": "a freight vehicle",
           "retrieved": []
         },
@@ -528,7 +528,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 6.669624999631196,
+          "latencyMs": 11.549999995622784,
           "query": "a delivery truck",
           "retrieved": []
         },
@@ -536,7 +536,7 @@
           "recall@5": 0.0,
           "recall@10": 0.0,
           "ndcg@10": 0.0,
-          "latencyMs": 7.8284170012921095,
+          "latencyMs": 9.808667004108429,
           "query": "a large lorry",
           "retrieved": []
         }
@@ -546,13 +546,13 @@
       "recall@5": 0.434,
       "recall@10": 0.694,
       "ndcg@10": 0.763220467845259,
-      "p95LatencyMs": 67.56154825852715,
+      "p95LatencyMs": 53.77060014288872,
       "perQuery": [
         {
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8643145546088337,
-          "latencyMs": 40.64258298603818,
+          "latencyMs": 41.104250005446374,
           "query": "airplane",
           "retrieved": [
             1522,
@@ -571,7 +571,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8669479898642709,
-          "latencyMs": 28.510624950286,
+          "latencyMs": 33.02966698538512,
           "query": "an airplane in the sky",
           "retrieved": [
             1514,
@@ -590,7 +590,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8630152897016882,
-          "latencyMs": 23.63966597476974,
+          "latencyMs": 35.85450001992285,
           "query": "a passenger jet",
           "retrieved": [
             1520,
@@ -609,7 +609,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8643145546088337,
-          "latencyMs": 19.25050001591444,
+          "latencyMs": 24.261249986011535,
           "query": "an aircraft",
           "retrieved": [
             1522,
@@ -628,7 +628,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8572048559638626,
-          "latencyMs": 20.035083987750113,
+          "latencyMs": 55.053249991033226,
           "query": "a flying plane",
           "retrieved": [
             1517,
@@ -647,7 +647,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 24.9272080254741,
+          "latencyMs": 27.19574997900054,
           "query": "automobile",
           "retrieved": [
             1523,
@@ -666,7 +666,7 @@
           "recall@5": 0.5,
           "recall@10": 0.9,
           "ndcg@10": 0.9363792118010481,
-          "latencyMs": 36.325666995253414,
+          "latencyMs": 20.387292024679482,
           "query": "a car on the road",
           "retrieved": [
             1528,
@@ -685,7 +685,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8630152897016882,
-          "latencyMs": 46.197791991289705,
+          "latencyMs": 30.947791994549334,
           "query": "a passenger vehicle",
           "retrieved": [
             1532,
@@ -704,7 +704,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 22.007458028383553,
+          "latencyMs": 21.711584005970508,
           "query": "a motorcar",
           "retrieved": [
             1532,
@@ -723,7 +723,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 18.632833031006157,
+          "latencyMs": 52.202916995156556,
           "query": "a small car",
           "retrieved": [
             1523,
@@ -742,7 +742,7 @@
           "recall@5": 0.5,
           "recall@10": 0.5,
           "ndcg@10": 0.6489315753318465,
-          "latencyMs": 25.600416003726423,
+          "latencyMs": 23.87845900375396,
           "query": "bird",
           "retrieved": [
             1536,
@@ -761,7 +761,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7125523635307982,
-          "latencyMs": 21.651207993272692,
+          "latencyMs": 19.26079101394862,
           "query": "a bird with feathers",
           "retrieved": [
             1536,
@@ -780,7 +780,7 @@
           "recall@5": 0.2,
           "recall@10": 0.3,
           "ndcg@10": 0.3932783996463063,
-          "latencyMs": 26.338750030845404,
+          "latencyMs": 19.98416701098904,
           "query": "a flying bird",
           "retrieved": [
             1536,
@@ -799,7 +799,7 @@
           "recall@5": 0.4,
           "recall@10": 0.5,
           "ndcg@10": 0.6371523797895855,
-          "latencyMs": 20.096666004974395,
+          "latencyMs": 18.924125004559755,
           "query": "a small wild bird",
           "retrieved": [
             1535,
@@ -818,7 +818,7 @@
           "recall@5": 0.2,
           "recall@10": 0.4,
           "ndcg@10": 0.37566986542073233,
-          "latencyMs": 18.15070799784735,
+          "latencyMs": 70.93187497230247,
           "query": "an animal with wings",
           "retrieved": [
             1557,
@@ -837,7 +837,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7695261902392828,
-          "latencyMs": 23.756249982398003,
+          "latencyMs": 37.85079100634903,
           "query": "cat",
           "retrieved": [
             1552,
@@ -856,7 +856,7 @@
           "recall@5": 0.3,
           "recall@10": 0.6,
           "ndcg@10": 0.6530488081313035,
-          "latencyMs": 18.911125021986663,
+          "latencyMs": 18.26020801672712,
           "query": "a pet cat",
           "retrieved": [
             1552,
@@ -875,7 +875,7 @@
           "recall@5": 0.3,
           "recall@10": 0.6,
           "ndcg@10": 0.6531466953037821,
-          "latencyMs": 23.850125027820468,
+          "latencyMs": 16.57662499928847,
           "query": "a kitten",
           "retrieved": [
             1545,
@@ -894,7 +894,7 @@
           "recall@5": 0.3,
           "recall@10": 0.7,
           "ndcg@10": 0.721801830382049,
-          "latencyMs": 24.27483396604657,
+          "latencyMs": 21.113416994921863,
           "query": "a feline animal",
           "retrieved": [
             1552,
@@ -913,7 +913,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7534494445524138,
-          "latencyMs": 19.389082968700677,
+          "latencyMs": 31.436124991159886,
           "query": "a domestic cat",
           "retrieved": [
             1552,
@@ -932,7 +932,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7222954974312066,
-          "latencyMs": 30.820082989521325,
+          "latencyMs": 25.4811670165509,
           "query": "deer",
           "retrieved": [
             1560,
@@ -951,7 +951,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7909506325094736,
-          "latencyMs": 25.972541014198214,
+          "latencyMs": 23.349000024609268,
           "query": "a wild deer",
           "retrieved": [
             1560,
@@ -970,7 +970,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7967610662472991,
-          "latencyMs": 20.73950000340119,
+          "latencyMs": 16.35416701901704,
           "query": "a deer in nature",
           "retrieved": [
             1560,
@@ -989,7 +989,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7849818707050382,
-          "latencyMs": 100.08845804259181,
+          "latencyMs": 22.28191599715501,
           "query": "an animal with antlers",
           "retrieved": [
             1560,
@@ -1008,7 +1008,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7273298443105218,
-          "latencyMs": 49.87745900871232,
+          "latencyMs": 27.04724995419383,
           "query": "a woodland deer",
           "retrieved": [
             1560,
@@ -1027,7 +1027,7 @@
           "recall@5": 0.2,
           "recall@10": 0.4,
           "ndcg@10": 0.45449827622138,
-          "latencyMs": 46.07266699895263,
+          "latencyMs": 18.176332989241928,
           "query": "dog",
           "retrieved": [
             1568,
@@ -1046,7 +1046,7 @@
           "recall@5": 0.3,
           "recall@10": 0.5,
           "ndcg@10": 0.604685538711841,
-          "latencyMs": 21.461541997268796,
+          "latencyMs": 16.997791011817753,
           "query": "a pet dog",
           "retrieved": [
             1570,
@@ -1065,7 +1065,7 @@
           "recall@5": 0.3,
           "recall@10": 0.4,
           "ndcg@10": 0.5326208815196265,
-          "latencyMs": 24.711125006433576,
+          "latencyMs": 18.257666961289942,
           "query": "a puppy",
           "retrieved": [
             1566,
@@ -1084,7 +1084,7 @@
           "recall@5": 0.3,
           "recall@10": 0.5,
           "ndcg@10": 0.47938213678331176,
-          "latencyMs": 23.8573340466246,
+          "latencyMs": 15.953417052514851,
           "query": "a canine animal",
           "retrieved": [
             1562,
@@ -1103,7 +1103,7 @@
           "recall@5": 0.3,
           "recall@10": 0.4,
           "ndcg@10": 0.5173633627401372,
-          "latencyMs": 34.9598330212757,
+          "latencyMs": 15.988416038453579,
           "query": "a domestic dog",
           "retrieved": [
             1567,
@@ -1122,7 +1122,7 @@
           "recall@5": 0.4,
           "recall@10": 0.6,
           "ndcg@10": 0.7116179486056782,
-          "latencyMs": 31.370458018500358,
+          "latencyMs": 21.78441599244252,
           "query": "frog",
           "retrieved": [
             1584,
@@ -1141,7 +1141,7 @@
           "recall@5": 0.4,
           "recall@10": 0.5,
           "ndcg@10": 0.6421867266689009,
-          "latencyMs": 20.96354099921882,
+          "latencyMs": 16.774624993558973,
           "query": "a frog",
           "retrieved": [
             1584,
@@ -1160,7 +1160,7 @@
           "recall@5": 0.4,
           "recall@10": 0.6,
           "ndcg@10": 0.6867151830982591,
-          "latencyMs": 50.759000005200505,
+          "latencyMs": 17.76508300099522,
           "query": "a green amphibian",
           "retrieved": [
             1584,
@@ -1179,7 +1179,7 @@
           "recall@5": 0.4,
           "recall@10": 0.5,
           "ndcg@10": 0.6083169141195838,
-          "latencyMs": 31.18704102234915,
+          "latencyMs": 15.88762504979968,
           "query": "a small frog",
           "retrieved": [
             1584,
@@ -1198,7 +1198,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7183627972686238,
-          "latencyMs": 57.949749985709786,
+          "latencyMs": 21.152540983166546,
           "query": "an amphibian animal",
           "retrieved": [
             1584,
@@ -1217,7 +1217,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8630152897016882,
-          "latencyMs": 39.33104197494686,
+          "latencyMs": 20.73929097969085,
           "query": "horse",
           "retrieved": [
             1591,
@@ -1236,7 +1236,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8643145546088337,
-          "latencyMs": 35.894249973353,
+          "latencyMs": 24.558542005252093,
           "query": "a horse",
           "retrieved": [
             1596,
@@ -1255,7 +1255,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7702043899253146,
-          "latencyMs": 31.723666994366795,
+          "latencyMs": 21.396916010417044,
           "query": "a horse in a field",
           "retrieved": [
             1596,
@@ -1274,7 +1274,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7752387368046298,
-          "latencyMs": 23.482250049710274,
+          "latencyMs": 27.01612503733486,
           "query": "an equine animal",
           "retrieved": [
             1596,
@@ -1293,7 +1293,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8669479898642709,
-          "latencyMs": 22.064457996748388,
+          "latencyMs": 28.275375021621585,
           "query": "a riding horse",
           "retrieved": [
             1593,
@@ -1312,7 +1312,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 44.868791999761015,
+          "latencyMs": 25.667790963780135,
           "query": "ship",
           "retrieved": [
             1609,
@@ -1331,7 +1331,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 28.36470800684765,
+          "latencyMs": 24.297083029523492,
           "query": "a ship on water",
           "retrieved": [
             1609,
@@ -1350,7 +1350,7 @@
           "recall@5": 0.5,
           "recall@10": 0.9,
           "ndcg@10": 0.9363792118010481,
-          "latencyMs": 30.83666699239984,
+          "latencyMs": 20.88470902526751,
           "query": "a large boat",
           "retrieved": [
             1600,
@@ -1369,7 +1369,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 39.5934580010362,
+          "latencyMs": 17.05725002102554,
           "query": "a vessel at sea",
           "retrieved": [
             1607,
@@ -1388,7 +1388,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7935840677649109,
-          "latencyMs": 30.986417026724666,
+          "latencyMs": 23.12045800499618,
           "query": "a sailing ship",
           "retrieved": [
             1609,
@@ -1407,7 +1407,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7885497208855956,
-          "latencyMs": 41.26604204066098,
+          "latencyMs": 22.771582996938378,
           "query": "truck",
           "retrieved": [
             1619,
@@ -1426,7 +1426,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7859162856301583,
-          "latencyMs": 63.29554197145626,
+          "latencyMs": 39.60841702064499,
           "query": "a truck on the road",
           "retrieved": [
             1619,
@@ -1445,7 +1445,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8553475075669356,
-          "latencyMs": 85.37137502571568,
+          "latencyMs": 20.743624947499484,
           "query": "a freight vehicle",
           "retrieved": [
             1616,
@@ -1464,7 +1464,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8579809428223729,
-          "latencyMs": 71.05191703885794,
+          "latencyMs": 65.18566701561213,
           "query": "a delivery truck",
           "retrieved": [
             1619,
@@ -1483,7 +1483,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7917267193679838,
-          "latencyMs": 57.54991702269763,
+          "latencyMs": 23.767542035784572,
           "query": "a large lorry",
           "retrieved": [
             1617,
@@ -1504,13 +1504,13 @@
       "recall@5": 0.446,
       "recall@10": 0.766,
       "ndcg@10": 0.816635461159194,
-      "p95LatencyMs": 80.06158314237835,
+      "p95LatencyMs": 65.33062134985803,
       "perQuery": [
         {
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 49.31499995291233,
+          "latencyMs": 46.68833297910169,
           "query": "airplane",
           "retrieved": [
             1514,
@@ -1529,7 +1529,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8669479898642709,
-          "latencyMs": 63.003582996316254,
+          "latencyMs": 30.80979100195691,
           "query": "an airplane in the sky",
           "retrieved": [
             1514,
@@ -1548,7 +1548,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8630152897016882,
-          "latencyMs": 34.64908298337832,
+          "latencyMs": 25.83208295982331,
           "query": "a passenger jet",
           "retrieved": [
             1520,
@@ -1567,7 +1567,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8643145546088337,
-          "latencyMs": 26.078749971929938,
+          "latencyMs": 27.750124980229884,
           "query": "an aircraft",
           "retrieved": [
             1522,
@@ -1586,7 +1586,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8572048559638626,
-          "latencyMs": 24.826542008668184,
+          "latencyMs": 29.07483302988112,
           "query": "a flying plane",
           "retrieved": [
             1517,
@@ -1605,7 +1605,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 26.037667004857212,
+          "latencyMs": 22.055542038287967,
           "query": "automobile",
           "retrieved": [
             1523,
@@ -1624,7 +1624,7 @@
           "recall@5": 0.5,
           "recall@10": 0.9,
           "ndcg@10": 0.9363792118010481,
-          "latencyMs": 22.507915971800685,
+          "latencyMs": 20.912125008180737,
           "query": "a car on the road",
           "retrieved": [
             1528,
@@ -1643,7 +1643,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8630152897016882,
-          "latencyMs": 35.05445801420137,
+          "latencyMs": 33.684041001833975,
           "query": "a passenger vehicle",
           "retrieved": [
             1532,
@@ -1662,7 +1662,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 31.888041994534433,
+          "latencyMs": 30.65312496619299,
           "query": "a motorcar",
           "retrieved": [
             1532,
@@ -1681,7 +1681,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 26.363415992818773,
+          "latencyMs": 21.25354198506102,
           "query": "a small car",
           "retrieved": [
             1523,
@@ -1700,7 +1700,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 25.29179200064391,
+          "latencyMs": 27.11524994811043,
           "query": "bird",
           "retrieved": [
             1536,
@@ -1719,7 +1719,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7125523635307982,
-          "latencyMs": 83.44579197000712,
+          "latencyMs": 22.887625033035874,
           "query": "a bird with feathers",
           "retrieved": [
             1536,
@@ -1738,7 +1738,7 @@
           "recall@5": 0.2,
           "recall@10": 0.3,
           "ndcg@10": 0.3932783996463063,
-          "latencyMs": 36.65724996244535,
+          "latencyMs": 19.66641697799787,
           "query": "a flying bird",
           "retrieved": [
             1536,
@@ -1757,7 +1757,7 @@
           "recall@5": 0.4,
           "recall@10": 0.5,
           "ndcg@10": 0.6371523797895855,
-          "latencyMs": 25.262541021220386,
+          "latencyMs": 17.156707996036857,
           "query": "a small wild bird",
           "retrieved": [
             1535,
@@ -1776,7 +1776,7 @@
           "recall@5": 0.2,
           "recall@10": 0.4,
           "ndcg@10": 0.37566986542073233,
-          "latencyMs": 28.267415997106582,
+          "latencyMs": 22.171208984218538,
           "query": "an animal with wings",
           "retrieved": [
             1557,
@@ -1795,7 +1795,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 26.106250006705523,
+          "latencyMs": 23.930749972350895,
           "query": "cat",
           "retrieved": [
             1544,
@@ -1814,7 +1814,7 @@
           "recall@5": 0.3,
           "recall@10": 0.6,
           "ndcg@10": 0.6530488081313035,
-          "latencyMs": 27.90512499632314,
+          "latencyMs": 33.74308400088921,
           "query": "a pet cat",
           "retrieved": [
             1552,
@@ -1833,7 +1833,7 @@
           "recall@5": 0.3,
           "recall@10": 0.6,
           "ndcg@10": 0.6531466953037821,
-          "latencyMs": 42.5462499842979,
+          "latencyMs": 18.0762920062989,
           "query": "a kitten",
           "retrieved": [
             1545,
@@ -1852,7 +1852,7 @@
           "recall@5": 0.3,
           "recall@10": 0.7,
           "ndcg@10": 0.721801830382049,
-          "latencyMs": 58.794917014893144,
+          "latencyMs": 26.295042014680803,
           "query": "a feline animal",
           "retrieved": [
             1552,
@@ -1871,7 +1871,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7534494445524138,
-          "latencyMs": 30.82029102370143,
+          "latencyMs": 23.035791993606836,
           "query": "a domestic cat",
           "retrieved": [
             1552,
@@ -1890,7 +1890,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 35.01237498130649,
+          "latencyMs": 49.7972919838503,
           "query": "deer",
           "retrieved": [
             1556,
@@ -1909,7 +1909,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7909506325094736,
-          "latencyMs": 35.5942920432426,
+          "latencyMs": 82.95995800290257,
           "query": "a wild deer",
           "retrieved": [
             1560,
@@ -1928,7 +1928,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7967610662472991,
-          "latencyMs": 31.389124982524663,
+          "latencyMs": 78.03970901295543,
           "query": "a deer in nature",
           "retrieved": [
             1560,
@@ -1947,7 +1947,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7849818707050382,
-          "latencyMs": 41.91733303014189,
+          "latencyMs": 104.39929098356515,
           "query": "an animal with antlers",
           "retrieved": [
             1560,
@@ -1966,7 +1966,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7273298443105218,
-          "latencyMs": 42.6877080462873,
+          "latencyMs": 36.402083991561085,
           "query": "a woodland deer",
           "retrieved": [
             1560,
@@ -1985,7 +1985,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 46.44808400189504,
+          "latencyMs": 28.067334031220526,
           "query": "dog",
           "retrieved": [
             1568,
@@ -2004,7 +2004,7 @@
           "recall@5": 0.3,
           "recall@10": 0.5,
           "ndcg@10": 0.604685538711841,
-          "latencyMs": 39.94349995627999,
+          "latencyMs": 21.323375054635108,
           "query": "a pet dog",
           "retrieved": [
             1570,
@@ -2023,7 +2023,7 @@
           "recall@5": 0.3,
           "recall@10": 0.4,
           "ndcg@10": 0.5326208815196265,
-          "latencyMs": 67.20266700722277,
+          "latencyMs": 27.877000044099987,
           "query": "a puppy",
           "retrieved": [
             1566,
@@ -2042,7 +2042,7 @@
           "recall@5": 0.3,
           "recall@10": 0.5,
           "ndcg@10": 0.47938213678331176,
-          "latencyMs": 36.47708299104124,
+          "latencyMs": 26.622916979249567,
           "query": "a canine animal",
           "retrieved": [
             1562,
@@ -2061,7 +2061,7 @@
           "recall@5": 0.3,
           "recall@10": 0.4,
           "ndcg@10": 0.5173633627401372,
-          "latencyMs": 43.185750022530556,
+          "latencyMs": 34.88979197572917,
           "query": "a domestic dog",
           "retrieved": [
             1567,
@@ -2080,7 +2080,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 33.34408299997449,
+          "latencyMs": 19.57879203837365,
           "query": "frog",
           "retrieved": [
             1575,
@@ -2099,7 +2099,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 36.970832967199385,
+          "latencyMs": 18.928959034383297,
           "query": "a frog",
           "retrieved": [
             1575,
@@ -2118,7 +2118,7 @@
           "recall@5": 0.4,
           "recall@10": 0.6,
           "ndcg@10": 0.6867151830982591,
-          "latencyMs": 40.85945902625099,
+          "latencyMs": 16.231333022005856,
           "query": "a green amphibian",
           "retrieved": [
             1584,
@@ -2137,7 +2137,7 @@
           "recall@5": 0.4,
           "recall@10": 0.5,
           "ndcg@10": 0.6083169141195838,
-          "latencyMs": 39.93958298815414,
+          "latencyMs": 17.402208992280066,
           "query": "a small frog",
           "retrieved": [
             1584,
@@ -2156,7 +2156,7 @@
           "recall@5": 0.5,
           "recall@10": 0.6,
           "ndcg@10": 0.7183627972686238,
-          "latencyMs": 50.50712503725663,
+          "latencyMs": 19.19837499735877,
           "query": "an amphibian animal",
           "retrieved": [
             1584,
@@ -2175,7 +2175,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 47.73383302381262,
+          "latencyMs": 23.337499995250255,
           "query": "horse",
           "retrieved": [
             1587,
@@ -2194,7 +2194,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 45.426958007737994,
+          "latencyMs": 17.859207990113646,
           "query": "a horse",
           "retrieved": [
             1587,
@@ -2213,7 +2213,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7702043899253146,
-          "latencyMs": 74.1722909733653,
+          "latencyMs": 19.903832988347858,
           "query": "a horse in a field",
           "retrieved": [
             1596,
@@ -2232,7 +2232,7 @@
           "recall@5": 0.4,
           "recall@10": 0.7,
           "ndcg@10": 0.7752387368046298,
-          "latencyMs": 65.01820898847654,
+          "latencyMs": 18.81179097108543,
           "query": "an equine animal",
           "retrieved": [
             1596,
@@ -2251,7 +2251,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8669479898642709,
-          "latencyMs": 76.57274999655783,
+          "latencyMs": 18.773125018924475,
           "query": "a riding horse",
           "retrieved": [
             1593,
@@ -2270,7 +2270,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 31.76508395699784,
+          "latencyMs": 22.146541974507272,
           "query": "ship",
           "retrieved": [
             1600,
@@ -2289,7 +2289,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 53.038249956443906,
+          "latencyMs": 20.795749966055155,
           "query": "a ship on water",
           "retrieved": [
             1609,
@@ -2308,7 +2308,7 @@
           "recall@5": 0.5,
           "recall@10": 0.9,
           "ndcg@10": 0.9363792118010481,
-          "latencyMs": 50.226416962686926,
+          "latencyMs": 22.834083007182926,
           "query": "a large boat",
           "retrieved": [
             1600,
@@ -2327,7 +2327,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 82.9160829889588,
+          "latencyMs": 19.678917014971375,
           "query": "a vessel at sea",
           "retrieved": [
             1607,
@@ -2346,7 +2346,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7935840677649109,
-          "latencyMs": 64.75866702385247,
+          "latencyMs": 22.093041974585503,
           "query": "a sailing ship",
           "retrieved": [
             1609,
@@ -2365,7 +2365,7 @@
           "recall@5": 0.5,
           "recall@10": 1.0,
           "ndcg@10": 1.0,
-          "latencyMs": 51.33829195983708,
+          "latencyMs": 20.135458034928888,
           "query": "truck",
           "retrieved": [
             1613,
@@ -2384,7 +2384,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7859162856301583,
-          "latencyMs": 55.167916987556964,
+          "latencyMs": 20.077207998838276,
           "query": "a truck on the road",
           "retrieved": [
             1619,
@@ -2403,7 +2403,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8553475075669356,
-          "latencyMs": 66.32854096824303,
+          "latencyMs": 24.636874964926392,
           "query": "a freight vehicle",
           "retrieved": [
             1616,
@@ -2422,7 +2422,7 @@
           "recall@5": 0.5,
           "recall@10": 0.8,
           "ndcg@10": 0.8579809428223729,
-          "latencyMs": 35.17124999780208,
+          "latencyMs": 27.075791964307427,
           "query": "a delivery truck",
           "retrieved": [
             1619,
@@ -2441,7 +2441,7 @@
           "recall@5": 0.5,
           "recall@10": 0.7,
           "ndcg@10": 0.7917267193679838,
-          "latencyMs": 97.13050001300871,
+          "latencyMs": 15.401042008306831,
           "query": "a large lorry",
           "retrieved": [
             1617,

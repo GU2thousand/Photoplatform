@@ -95,7 +95,7 @@ public class OutboxDispatcher {
             WHERE (s.cleaned_at IS NULL OR s.cleaned_at<now()-interval '1 hour')
             AND s.expires_at<now()-interval '1 minute'
             AND a.processing_status IN ('ABORTED','READY','FAILED','DELETED')
-            ORDER BY s.cleaned_at NULLS FIRST,s.expires_at LIMIT 100
+            ORDER BY coalesce(s.cleaned_at+interval '1 hour',s.expires_at+interval '1 minute') LIMIT 100
             """);
         for(var row:rows) {
             try {
