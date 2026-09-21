@@ -38,7 +38,7 @@ public class MediaController {
         ImageAsset image = imageService.getAccessibleImage(imageId, authService.optionalUser(principal));
         response.setHeader(HttpHeaders.CACHE_CONTROL,"private, no-store");
         if (!image.getStorageLayout().equals("VERSIONED")) return java.util.Map.of("legacy",true);
-        return java.util.Map.of("url",delivery.getObject().url(image,variant),"expiresIn",60,"legacy",false);
+        return java.util.Map.of("url",delivery.getObject().url(image,variant),"expiresIn",delivery.getObject().ttlSeconds(),"legacy",false);
     }
 
     @GetMapping("/{imageId}")

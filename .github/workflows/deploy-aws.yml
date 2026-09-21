@@ -1,0 +1,145 @@
+name: Deploy AWS
+
+on:
+  workflow_run:
+    workflows: [Verify]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected GitHub environment
+        type: choice
+        options: [dev, prod]
+        default: dev
+      deploy_services:
+        description: Roll existing services and publish frontend (false for initial ECR bootstrap)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-deploy-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verified-source:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && vars.AUTO_DEPLOY_DEV == 'true' &&
+       github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Require successful Verify for this exact current main commit
+        id: source
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const repo = context.repo;
+            const workflow = await github.rest.actions.getWorkflow({...repo, workflow_id: 'ci.yml'});
+            const main = await github.rest.repos.getBranch({...repo, branch: 'main'});
+            const sha = context.eventName === 'workflow_run' ? context.payload.workflow_run.head_sha : context.sha;
+            if (!/^[a-f0-9]{40}$/.test(sha) || sha !== main.data.commit.sha) {
+              throw new Error('Only the current main commit can deploy; rerun Verify on main.');
+            }
+            let runs;
+            if (context.eventName === 'workflow_run') {
+              const run = await github.rest.actions.getWorkflowRun({...repo, run_id: context.payload.workflow_run.id});
+              runs = [run.data];
+            } else {
+              const response = await github.rest.actions.listWorkflowRuns({
+                ...repo, workflow_id: workflow.data.id, branch: 'main', head_sha: sha, status: 'success', per_page: 100
+              });
+              runs = response.data.workflow_runs;
+            }
+            const verified = runs.find(run => run.workflow_id === workflow.data.id && run.head_sha === sha &&
+              run.head_branch === 'main' && run.head_repository?.full_name === `${repo.owner}/${repo.repo}` &&
+              ['push', 'workflow_dispatch'].includes(run.event) && run.conclusion === 'success');
+            if (!verified) throw new Error('A successful main Verify run for this exact SHA is required.');
+            core.setOutput('sha', sha);
+            core.notice(`Deploying verified commit ${sha} from Verify run ${verified.id}`);
+
+  deploy:
+    needs: verified-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ inputs.environment || 'dev' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      DEPLOY_SHA: ${{ needs.verified-source.outputs.sha }}
+      DEPLOY_SERVICES: ${{ github.event_name != 'workflow_dispatch' || inputs.deploy_services }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_API_SERVICE: ${{ vars.ECS_API_SERVICE }}
+      ECS_WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+      ECS_ENCODER_SERVICE: ${{ vars.ECS_ENCODER_SERVICE }}
+      ECS_EMBEDDING_WORKER_SERVICE: ${{ vars.ECS_EMBEDDING_WORKER_SERVICE }}
+      TASK_DEFINITION_PARAMETERS: ${{ vars.TASK_DEFINITION_PARAMETERS }}
+      ECS_COLLECTOR_SERVICE: ${{ vars.ECS_COLLECTOR_SERVICE }}
+      ECR_API_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
+      ECR_WORKER_REPOSITORY: ${{ vars.ECR_WORKER_REPOSITORY }}
+      ECR_ENCODER_REPOSITORY: ${{ vars.ECR_ENCODER_REPOSITORY }}
+      ECR_COLLECTOR_REPOSITORY: ${{ vars.ECR_COLLECTOR_REPOSITORY }}
+      ENABLE_ENCODER: ${{ vars.ENABLE_ENCODER }}
+      FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      FRONTEND_DISTRIBUTION_ID: ${{ vars.FRONTEND_DISTRIBUTION_ID }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+      VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.verified-source.outputs.sha }}
+          persist-credentials: false
+      - name: Validate deployment configuration before obtaining credentials
+        run: python3 scripts/deploy/deploy.py preflight
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: photoplatform-${{ github.run_id }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build immutable images and record ECR digests
+        run: python3 scripts/deploy/deploy.py build
+      - uses: actions/setup-node@v7.0.0
+        if: env.DEPLOY_SERVICES == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend with its public HTTPS API origin
+        if: env.DEPLOY_SERVICES == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Roll ECS services and verify the expected revisions are healthy
+        if: env.DEPLOY_SERVICES == 'true'
+        run: python3 scripts/deploy/deploy.py rollout
+      - name: Publish frontend after API rollout succeeds
+        if: env.DEPLOY_SERVICES == 'true'
+        run: python3 scripts/deploy/deploy.py frontend
+      - name: Preserve deployment evidence (including failed deployments)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-deployment-${{ needs.verified-source.outputs.sha }}
+          path: deployment-results/*.json
+          if-no-files-found: warn
+          retention-days: 30

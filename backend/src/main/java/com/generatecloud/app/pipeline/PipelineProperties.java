@@ -12,7 +12,7 @@ public class PipelineProperties {
     private int uploadTtlSeconds = 900;
     private long maxBytes = 15 * 1024 * 1024;
     private int maxActiveUploads = 20;
-    private String publicStorageEndpoint = "http://localhost:9000";
+    private String publicStorageEndpoint = "";
     private String modelVersion = "clip-vit-b32-openai-v1";
     private boolean searchEnabled;
     private String encoderUrl = "http://encoder:8090";
@@ -20,4 +20,7 @@ public class PipelineProperties {
     private String cdnDomain = "";
     private String cdnKeyPairId = "";
     private String cdnPrivateKeyPath = "";
+    private String cdnPrivateKeyPem = "";
+    private String mediaUrlProvider = "auto";
+    private int mediaUrlTtlSeconds = 60;
 }

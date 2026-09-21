@@ -1,0 +1,20 @@
+region = "us-east-1"
+availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+bucket_name_prefix = "REPLACE-account-photoplatform-dev"
+api_domain = "api-dev.example.com"
+api_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/REPLACE"
+# Optional: manage API DNS in an existing hosted zone.
+# route53_zone_id = "ZREPLACE"
+cdn_public_key_pem = "REPLACE WITH MULTILINE RSA PUBLIC KEY USING A HEREDOC"
+application_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:photoplatform/dev/application-REPLACE"
+mq_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:photoplatform/dev/broker-REPLACE"
+# For the second environment reuse the account's existing GitHub OIDC provider.
+# github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+create_services = false
+protect_data = true
+# After the build-only workflow pushes images, set immutable digests and true.
+# image_refs = { api = "ACCOUNT.dkr.ecr.REGION.amazonaws.com/photoplatform-dev/api@sha256:...", worker = "...", collector = "..." }
+# Production service startup also requires pre-created restricted role secrets:
+# application_database_secret_arn = "arn:aws:secretsmanager:..."
+# mq_runtime_secret_arn = "arn:aws:secretsmanager:..."
+# mq_monitoring_secret_arn = "arn:aws:secretsmanager:..."

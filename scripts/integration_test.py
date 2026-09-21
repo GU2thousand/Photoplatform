@@ -119,7 +119,7 @@ class PipelineIntegration(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         delivery=request("GET",path)
         self.assertEqual(delivery.status_code,200,delivery.text)
-        self.assertEqual(requests.get(delivery.json()["url"],timeout=30).headers["Cache-Control"],"public, max-age=60")
+        self.assertEqual(requests.get(delivery.json()["url"],timeout=30).headers["Cache-Control"],"private, no-store")
         request("PATCH",f"/api/images/{upload['mediaId']}/moderation?status=REJECTED",self.admin).raise_for_status()
         self.assertEqual(request("GET",path).status_code,403)
 

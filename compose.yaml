@@ -25,7 +25,8 @@ services:
       interval: 5s
       retries: 20
   rabbitmq:
-    image: rabbitmq:4.1-management-alpine
+    # Keep existing local 4.1 data volumes compatible; CI uses a fresh 4.3 broker.
+    image: ${RABBITMQ_IMAGE:-rabbitmq:4.1-management-alpine}
     environment:
       RABBITMQ_DEFAULT_USER: generatecloud
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-generatecloud}
@@ -51,7 +52,7 @@ services:
       APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
       MEDIA_PIPELINE_ENABLED: "true"
       UPLOAD_MAX_ACTIVE: ${UPLOAD_MAX_ACTIVE:-20}
-      STORAGE_PROVIDER: s3
+      STORAGE_PROVIDER: minio
       STORAGE_BUCKET: generatecloud-assets
       STORAGE_REGION: us-east-1
       STORAGE_ENDPOINT: http://minio:9000
@@ -83,6 +84,7 @@ services:
     environment: &worker-env
       DATABASE_URL: postgresql://generatecloud:${POSTGRES_PASSWORD:-generatecloud}@postgres:5432/generatecloud
       RABBITMQ_URL: amqp://generatecloud:${RABBITMQ_PASSWORD:-generatecloud}@rabbitmq:5672/%2F
+      STORAGE_PROVIDER: minio
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_BUCKET: generatecloud-assets
       STORAGE_ACCESS_KEY: minioadmin

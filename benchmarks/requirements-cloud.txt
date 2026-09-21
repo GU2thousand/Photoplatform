@@ -1,0 +1,5 @@
+# Harness runtime. Reuse the locked worker environment in CI where available.
+boto3>=1.35,<2
+requests>=2.32.4,<3
+psycopg[binary]>=3.2,<4
+numpy>=2.1,<3

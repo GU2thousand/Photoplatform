@@ -1,0 +1,11 @@
+# Amazon MQ module
+
+This module creates a private, encrypted RabbitMQ broker with TLS listeners and general CloudWatch logs. The single broker defaults to `4.3` / `mq.m7g.medium`; production should use `CLUSTER_MULTI_AZ`, three isolated subnets in distinct AZs, and `mq.m7g.large` or larger. Confirm engine and instance availability in the target region with `aws mq describe-broker-instance-options` before applying. All patch upgrades follow the configured maintenance window.
+
+As verified against [AWS instance documentation](https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/rmq-broker-instance-types.html) on September21,2026, `mq.t3.micro` is no longer available for new brokers. [AWS recommends RabbitMQ4.3](https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/rabbitmq-version-management.html), which requires the `mq.m7g` family. The module permits3.13/m5 for deliberate compatibility deployments; it does not change an existing broker automatically. Run the queue declaration, publisher confirm, manual acknowledgment, retry, poison-message, and replay tests against the selected engine before promotion.
+
+The initial user is an administrator. Amazon MQ exposes only the bootstrap user through Terraform creation; [the provider cannot detect subsequent user drift](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/mq_broker.html), and changing a RabbitMQ user block replaces the broker. Plan user rotation as an explicit management-API operation and create scoped application and monitoring users before production. Never rotate by casually replacing the Terraform password input.
+
+**State contains the MQ password even when its input comes from Secrets Manager.** The sensitive flag redacts normal output, but does not remove the password from state. Use an encrypted, access-restricted remote state bucket with versioning and state locking. Do not commit `.tfstate`, plans, or secret `.tfvars` files. RDS uses a different mechanism and generates its master password inside AWS.
+
+Only the collector security group can reach management HTTPS443; API and worker groups can reach AMQPS5671. A management task for replay or user provisioning must explicitly attach the collector group and receive narrowly scoped IAM permissions. No broker listener is internet-accessible.

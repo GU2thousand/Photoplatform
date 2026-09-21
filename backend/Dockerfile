@@ -14,7 +14,11 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/certs \
+    && curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
+       https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+       -o /app/certs/global-bundle.pem
 
 COPY --from=build /app/build/libs/*.jar /app/app.jar
 COPY --from=build /app/build/otel/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar

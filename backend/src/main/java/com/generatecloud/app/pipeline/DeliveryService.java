@@ -13,12 +13,13 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name="app.pipeline.enabled",havingValue="true")
 public class DeliveryService {
     private final JdbcTemplate jdbc;
-    private final PipelineStorage storage;
+    private final MediaUrlService mediaUrls;
+    public int ttlSeconds() { return mediaUrls.ttlSeconds(); }
     public String url(ImageAsset image,String variant) {
         var keys=jdbc.queryForList("SELECT object_key FROM media_variants WHERE media_id=? AND asset_version=? AND variant=?",
                 String.class,image.getId(),image.getAssetVersion(),variant);
         if(keys.isEmpty()) throw new NotFoundException("Image variant not found");
         boolean approved=image.getVisibility()==Visibility.PUBLIC && image.getModerationStatus()==ModerationStatus.APPROVED;
-        return storage.download(keys.get(0),approved);
+        return mediaUrls.download(keys.get(0),approved);
     }
 }
