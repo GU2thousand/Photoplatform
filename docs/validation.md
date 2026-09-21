@@ -115,3 +115,7 @@ For scaling, set `UPLOAD_MAX_ACTIVE=1000` on the disposable API so 500 images ca
 - No AWS/Render provisioning, DNS cutover, production deployment, CDN hit-rate/egress-cost/edge-latency measurement, or cloud backup/restore drill was performed. CloudFront key handling, cache headers and private-origin configuration require verification in the target account.
 - No production dataset migration, bulk historical embedding backfill, multilingual CLIP evaluation, ANN performance claim, or physical erasure of S3 noncurrent versions is implied. Existing legacy media remains readable, but must be explicitly migrated/re-uploaded before new variant/hash/embedding features apply.
 - This small local run does not size production services. Media availability and embedding availability are separate; infrastructure and encoder failure must remain visible to operators.
+
+## PR review follow-up
+
+The deletion worker now erases every version and delete marker under a tombstoned media prefix. Deletion failures retain capped retries after the processing-job retry limit; reconciliation also recovers old DELETE dead letters. Verification on commit `5de0ed0` passed 22 worker tests, 10 pipeline tests and 7 recovery tests, including a real versioned MinIO erasure and old-DLQ recovery. The workflow uses explicit Bash with pipefail so test failures cannot be hidden by log capture through tee. Production replication, object-lock and backup retention remain deployment-specific.
