@@ -45,6 +45,7 @@ async (page) => {
   await check('team creation and real WebSocket note', async () => {
     await page.getByRole('button',{name:'Team Space',exact:true}).click();
     await page.getByLabel('Create team',{exact:true}).fill('Cloud browser team');
+    await page.getByLabel('Description',{exact:true}).fill('Cloud runtime collaboration test');
     await page.getByRole('button',{name:'Create Team',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('.socket-status')?.textContent.trim()==='Connected');
     const note='cloud-runtime-note-'+Date.now();
@@ -59,6 +60,7 @@ async (page) => {
   });
   await check('mobile layout has no page overflow', async () => {
     await page.setViewportSize({width:390,height:844});
+    await page.evaluate(()=>window.scrollTo(0,0));
     await page.screenshot({path:'output/playwright/photo-mobile.png',fullPage:true});
     const sizes=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,inner:innerWidth}));
     assert(sizes.scroll<=sizes.inner+1,sizes);return sizes;
