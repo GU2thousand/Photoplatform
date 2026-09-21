@@ -1,0 +1,2642 @@
+{
+  "createdAt": "2026-09-21T04:57:09Z",
+  "platform": "macOS-15.6-arm64-arm-64bit",
+  "docker": "8 CPUs, 4109737984 bytes memory",
+  "dataset": "deterministic synthetic JPEGs; 1024x768; seed=index; quality=90",
+  "count": 500,
+  "inputBytes": 109610353,
+  "manifestSha256": "861b9a1f7fac82c3936b7dcac09dc779704ea6e5f39a6864dbd0210c06134dec",
+  "latencyDefinition": "successful attempt finished_at - started_at; end-to-end includes queue wait, excludes upload",
+  "trials": [
+    {
+      "workers": 1,
+      "completed": 500,
+      "failures": 0,
+      "wallSecondsIncludingStartup": 101.51640400005272,
+      "activeBatchSeconds": 97.691815,
+      "imagesPerMinute": 307.08816291313656,
+      "averageProcessingSeconds": 0.184793248,
+      "p95ProcessingSeconds": 0.2658714,
+      "p95QueueWaitSeconds": 97.71136374999999,
+      "p95CompletionSeconds": 97.8765919,
+      "attempts": 500,
+      "samples": [
+        {
+          "elapsedSeconds": 1.1710054580471478,
+          "states": {
+            "QUEUED": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "30.2MB / 0B",
+              "CPUPerc": "53.88%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "1.32%",
+              "MemUsage": "51.81MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "306B / 0B",
+              "PIDs": "1"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 3.852910957997665,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 499
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.88%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.96%",
+              "MemUsage": "155.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "1.62MB / 3.35MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 7.145371375023387,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 488,
+            "DONE": 11
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "83.84%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.92%",
+              "MemUsage": "153.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "3.92MB / 8.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 9.865879083052278,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 477,
+            "DONE": 22
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.46%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.92%",
+              "MemUsage": "153.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "6.46MB / 15MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 12.508049875032157,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 466,
+            "DONE": 33
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.85%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.93%",
+              "MemUsage": "153.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "9MB / 21.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 15.163643917010631,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 455,
+            "DONE": 44
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.22%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.97%",
+              "MemUsage": "155.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "11.8MB / 27.8MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 18.241103417007253,
+          "states": {
+            "QUEUED": 444,
+            "DONE": 56
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "85.91%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.32%",
+              "MemUsage": "130.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "14.1MB / 33.4MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 20.947141500015277,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 433,
+            "DONE": 66
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.91%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.35%",
+              "MemUsage": "131.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "16.4MB / 38.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 23.592718750005588,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 424,
+            "DONE": 75
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.74%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.22%",
+              "MemUsage": "126.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "20.1MB / 47.8MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 27.119898208009545,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 405,
+            "DONE": 94
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.39%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.26%",
+              "MemUsage": "127.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "23.5MB / 56.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 29.74721916700946,
+          "states": {
+            "DONE": 109,
+            "QUEUED": 390,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "88.48%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.22%",
+              "MemUsage": "126.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "27MB / 64.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 32.350357667019125,
+          "states": {
+            "DONE": 123,
+            "QUEUED": 376,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "84.87%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.04%",
+              "MemUsage": "119.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "30MB / 71.7MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 34.969280042045284,
+          "states": {
+            "DONE": 135,
+            "QUEUED": 364,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "102.90%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.25%",
+              "MemUsage": "127.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "32.6MB / 77.8MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 38.08668683300493,
+          "states": {
+            "DONE": 147,
+            "QUEUED": 352,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "78.59%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "35.6MB / 85.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 40.734296625014395,
+          "states": {
+            "DONE": 160,
+            "QUEUED": 339,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.12%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.26%",
+              "MemUsage": "127.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "38.6MB / 92.3MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 43.40192345803371,
+          "states": {
+            "DONE": 175,
+            "QUEUED": 324,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.66%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.35%",
+              "MemUsage": "131.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "42MB / 101MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 45.99455858301371,
+          "states": {
+            "DONE": 189,
+            "QUEUED": 310,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.27%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.28%",
+              "MemUsage": "128.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "46MB / 110MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 49.06620104203466,
+          "states": {
+            "DONE": 206,
+            "QUEUED": 293,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "88.28%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.26%",
+              "MemUsage": "127.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "49.4MB / 118MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 51.671608500008006,
+          "states": {
+            "DONE": 222,
+            "QUEUED": 277,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.06%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.30%",
+              "MemUsage": "129.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "53.1MB / 127MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 54.27626891701948,
+          "states": {
+            "DONE": 238,
+            "QUEUED": 261,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "73.44%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.26%",
+              "MemUsage": "127.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "57MB / 137MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 57.3390338330064,
+          "states": {
+            "DONE": 254,
+            "QUEUED": 245,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.74%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.30%",
+              "MemUsage": "129.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "60.3MB / 145MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 59.93665187503211,
+          "states": {
+            "DONE": 268,
+            "QUEUED": 231,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.54%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.31%",
+              "MemUsage": "129.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "63.8MB / 153MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 62.53198437503306,
+          "states": {
+            "DONE": 284,
+            "QUEUED": 215,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.26%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "67.2MB / 162MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 65.13679220800987,
+          "states": {
+            "DONE": 299,
+            "QUEUED": 200,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "88.76%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.22%",
+              "MemUsage": "126.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "71.6MB / 172MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 68.22666266700253,
+          "states": {
+            "DONE": 318,
+            "QUEUED": 181,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.90%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.33%",
+              "MemUsage": "130.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "75.3MB / 181MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 70.82384170801379,
+          "states": {
+            "DONE": 335,
+            "QUEUED": 164,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.50%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.30%",
+              "MemUsage": "129.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "79.2MB / 190MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 73.44249425001908,
+          "states": {
+            "DONE": 351,
+            "QUEUED": 148,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "85.70%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.32%",
+              "MemUsage": "130MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "84.3MB / 202MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 77.07373083301354,
+          "states": {
+            "DONE": 374,
+            "QUEUED": 125,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "83.01%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.35%",
+              "MemUsage": "131.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "87.8MB / 211MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 79.67475187504897,
+          "states": {
+            "DONE": 387,
+            "QUEUED": 112,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "89.38%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.31%",
+              "MemUsage": "129.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "91.2MB / 219MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 82.25350179203087,
+          "states": {
+            "DONE": 404,
+            "QUEUED": 95,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "87.81%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.07%",
+              "MemUsage": "120.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "94.9MB / 229MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 84.84824608301278,
+          "states": {
+            "DONE": 419,
+            "QUEUED": 80,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "80.12%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.08%",
+              "MemUsage": "120.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "98.6MB / 237MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 87.96158870804356,
+          "states": {
+            "DONE": 430,
+            "QUEUED": 69,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "83.46%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.33%",
+              "MemUsage": "130.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "100MB / 241MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 90.66506416699849,
+          "states": {
+            "DONE": 440,
+            "QUEUED": 59,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "86.90%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.06%",
+              "MemUsage": "119.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "103MB / 249MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 93.2656414580415,
+          "states": {
+            "DONE": 455,
+            "QUEUED": 44,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "81.13%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "107MB / 257MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 95.87719316704897,
+          "states": {
+            "DONE": 470,
+            "QUEUED": 29,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "81.68%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.36%",
+              "MemUsage": "131.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "111MB / 266MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 98.92541954200715,
+          "states": {
+            "DONE": 487,
+            "QUEUED": 12,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "88.92%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.36%",
+              "MemUsage": "131.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "114MB / 274MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 101.51640400005272,
+          "states": {
+            "DONE": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "94.2MB / 0B",
+              "CPUPerc": "0.04%",
+              "Container": "8a693df8206a776f6a35d7acf536d907bb027ee95c6aceb884560c7cf860078a",
+              "ID": "8a693df8206a",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "116MB / 278MB",
+              "PIDs": "3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workers": 2,
+      "completed": 500,
+      "failures": 0,
+      "wallSecondsIncludingStartup": 98.77830095798708,
+      "activeBatchSeconds": 95.154532,
+      "imagesPerMinute": 315.27662812739175,
+      "averageProcessingSeconds": 0.353144898,
+      "p95ProcessingSeconds": 0.5267567,
+      "p95QueueWaitSeconds": 92.35842589999997,
+      "p95CompletionSeconds": 92.88104704999998,
+      "attempts": 500,
+      "samples": [
+        {
+          "elapsedSeconds": 1.1987319169566035,
+          "states": {
+            "QUEUED": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "15.2MB / 0B",
+              "CPUPerc": "73.93%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "1.23%",
+              "MemUsage": "48.04MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "306B / 0B",
+              "PIDs": "1"
+            },
+            {
+              "BlockIO": "18.2MB / 0B",
+              "CPUPerc": "81.24%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "1.39%",
+              "MemUsage": "54.62MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "306B / 0B",
+              "PIDs": "1"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 3.864948624977842,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 498
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "82.55%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "1.15MB / 2.23MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "82.13%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "3.32%",
+              "MemUsage": "130.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "1.85MB / 3.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 7.534694749978371,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 474,
+            "DONE": 24
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "88.94%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.79%",
+              "MemUsage": "109.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "4.39MB / 10.2MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "78.40%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "3.24%",
+              "MemUsage": "127MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "4.39MB / 10MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 10.759752916987054,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 452,
+            "DONE": 46
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "86.53%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "3.05%",
+              "MemUsage": "119.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "6.46MB / 15MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "86.80%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.97%",
+              "MemUsage": "116.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "6.24MB / 14.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 13.487535499967635,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 435,
+            "DONE": 63
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "80.97%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.80%",
+              "MemUsage": "109.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "9.24MB / 21.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "80.64%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.94%",
+              "MemUsage": "115.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "8.31MB / 19.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 17.189993167005014,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 414,
+            "DONE": 84
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "80.11%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "3.11%",
+              "MemUsage": "121.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "11.8MB / 27.8MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "79.07%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.95%",
+              "MemUsage": "115.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "11.3MB / 26.7MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 20.748772499966435,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 390,
+            "DONE": 108
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "82.85%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.83%",
+              "MemUsage": "111MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "13.9MB / 32.8MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "77.86%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.67%",
+              "MemUsage": "104.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "13.9MB / 33.4MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 24.421137291996274,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 367,
+            "DONE": 131
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "81.29%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.57%",
+              "MemUsage": "100.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "16.4MB / 39.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "87.56%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.67%",
+              "MemUsage": "104.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "16.4MB / 39.2MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 28.11645554198185,
+          "states": {
+            "RUNNING": 2,
+            "QUEUED": 345,
+            "DONE": 153
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "82.85%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.88%",
+              "MemUsage": "112.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "19.2MB / 45.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "83.80%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.67%",
+              "MemUsage": "104.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "18.5MB / 44.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 31.2623378749704,
+          "states": {
+            "RUNNING": 1,
+            "QUEUED": 326,
+            "DONE": 173
+          },
+          "containers": [
+            {
+              "BlockIO": "37.5MB / 0B",
+              "CPUPerc": "81.49%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.57%",
+              "MemUsage": "100.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "21.3MB / 51.2MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "79.90%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.68%",
+              "MemUsage": "104.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "21.3MB / 51.2MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 34.95261379197473,
+          "states": {
+            "DONE": 194,
+            "QUEUED": 304,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "82.70%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.84%",
+              "MemUsage": "111.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "24.7MB / 59MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "88.95%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.93%",
+              "MemUsage": "115MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "23.1MB / 55.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 38.728775166964624,
+          "states": {
+            "DONE": 216,
+            "QUEUED": 282,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "82.15%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.88%",
+              "MemUsage": "112.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "26.6MB / 63.4MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "84.51%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.98%",
+              "MemUsage": "116.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "25.6MB / 61.2MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 41.8160710419761,
+          "states": {
+            "DONE": 236,
+            "QUEUED": 262,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "87.48%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.88%",
+              "MemUsage": "112.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "29.6MB / 70.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "84.31%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.93%",
+              "MemUsage": "115MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "28MB / 66.7MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 45.440369624993764,
+          "states": {
+            "DONE": 259,
+            "QUEUED": 239,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "85.40%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.75%",
+              "MemUsage": "107.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "31.7MB / 75.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "85.51%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.93%",
+              "MemUsage": "115MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "31.2MB / 74.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 49.152745832980145,
+          "states": {
+            "DONE": 281,
+            "QUEUED": 217,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "86.38%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.58%",
+              "MemUsage": "101.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "34.2MB / 82MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "82.04%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.98%",
+              "MemUsage": "116.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "33MB / 79MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 52.32346674997825,
+          "states": {
+            "DONE": 297,
+            "QUEUED": 201,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "85.56%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.89%",
+              "MemUsage": "113.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "35.8MB / 85.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "83.84%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.97%",
+              "MemUsage": "116.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "34.7MB / 82.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 55.05389708298026,
+          "states": {
+            "DONE": 311,
+            "QUEUED": 187,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "92.48%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.89%",
+              "MemUsage": "113.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "37.4MB / 89.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "79.28%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.90%",
+              "MemUsage": "113.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "37MB / 88.4MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 58.778739082976244,
+          "states": {
+            "DONE": 331,
+            "QUEUED": 168,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "85.53%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.60%",
+              "MemUsage": "101.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "40MB / 95.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "84.80%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.66%",
+              "MemUsage": "104.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "38.8MB / 92.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 61.8839542499627,
+          "states": {
+            "DONE": 347,
+            "QUEUED": 151,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "89.95%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.64%",
+              "MemUsage": "103.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "41.6MB / 99.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "89.02%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.40%",
+              "MemUsage": "94.25MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "40.9MB / 98.4MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 65.55904616694897,
+          "states": {
+            "DONE": 367,
+            "QUEUED": 132,
+            "RUNNING": 1
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "89.65%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.60%",
+              "MemUsage": "101.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "44.6MB / 107MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "86.97%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.57%",
+              "MemUsage": "100.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "42.7MB / 102MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 69.29264204198262,
+          "states": {
+            "DONE": 386,
+            "QUEUED": 112,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "77.44%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.62%",
+              "MemUsage": "102.5MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "46MB / 110MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "84.74%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.68%",
+              "MemUsage": "105.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "44.8MB / 107MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 72.55218154197792,
+          "states": {
+            "DONE": 393,
+            "QUEUED": 105,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "90.79%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.64%",
+              "MemUsage": "103.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "46.9MB / 112MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "90.16%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.71%",
+              "MemUsage": "106.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "45.7MB / 110MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 75.49283820798155,
+          "states": {
+            "DONE": 407,
+            "QUEUED": 91,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "85.92%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.60%",
+              "MemUsage": "101.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "48.5MB / 116MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "86.69%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.68%",
+              "MemUsage": "104.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "47.4MB / 113MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 78.1937662079581,
+          "states": {
+            "DONE": 421,
+            "QUEUED": 77,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "71.15%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.34%",
+              "MemUsage": "91.65MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "50.1MB / 121MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "75.43%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.41%",
+              "MemUsage": "94.28MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "49MB / 118MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 81.36941662494792,
+          "states": {
+            "DONE": 435,
+            "QUEUED": 63,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "79.28%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.55%",
+              "MemUsage": "99.91MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "52.2MB / 125MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "80.32%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.58%",
+              "MemUsage": "100.9MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "50.6MB / 121MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 85.19840249995468,
+          "states": {
+            "DONE": 451,
+            "QUEUED": 47,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "90.85%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.34%",
+              "MemUsage": "91.66MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "53.4MB / 128MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "90.18%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.50%",
+              "MemUsage": "98.08MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "52.9MB / 127MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 89.01120345795061,
+          "states": {
+            "DONE": 467,
+            "QUEUED": 31,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "82.37%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.55%",
+              "MemUsage": "99.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "55.5MB / 133MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "86.30%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.68%",
+              "MemUsage": "105.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "54.3MB / 130MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 92.16354300000239,
+          "states": {
+            "DONE": 479,
+            "QUEUED": 19,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "80.01%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.62%",
+              "MemUsage": "102.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "56.6MB / 136MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "81.06%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.71%",
+              "MemUsage": "106MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "55.5MB / 133MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 95.0043459169683,
+          "states": {
+            "DONE": 489,
+            "QUEUED": 9,
+            "RUNNING": 2
+          },
+          "containers": [
+            {
+              "BlockIO": "37.6MB / 0B",
+              "CPUPerc": "87.30%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.62%",
+              "MemUsage": "102.6MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "57.8MB / 138MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "88.57%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.71%",
+              "MemUsage": "106MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "57.1MB / 137MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 98.77830095798708,
+          "states": {
+            "DONE": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "37.7MB / 0B",
+              "CPUPerc": "0.03%",
+              "Container": "8e65f63263cbc069356c1debbaf66d6f4c3ec90ab522a8f20bd980d3bd2ca1a4",
+              "ID": "8e65f63263cb",
+              "MemPerc": "2.37%",
+              "MemUsage": "92.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "58.2MB / 140MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "42.6MB / 0B",
+              "CPUPerc": "0.01%",
+              "Container": "88e7d41e38f866a607438ab992628a068efdca45987f3e8be9f0e8ebea1dae58",
+              "ID": "88e7d41e38f8",
+              "MemPerc": "2.45%",
+              "MemUsage": "96.04MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "57.3MB / 138MB",
+              "PIDs": "3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workers": 4,
+      "completed": 500,
+      "failures": 0,
+      "wallSecondsIncludingStartup": 55.94472204201156,
+      "activeBatchSeconds": 48.633003,
+      "imagesPerMinute": 616.8650535522142,
+      "averageProcessingSeconds": 0.365718432,
+      "p95ProcessingSeconds": 0.47557629999999984,
+      "p95QueueWaitSeconds": 50.94201929999999,
+      "p95CompletionSeconds": 51.63114855,
+      "attempts": 500,
+      "samples": [
+        {
+          "elapsedSeconds": 2.08354754204629,
+          "states": {
+            "QUEUED": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "40.2MB / 0B",
+              "CPUPerc": "74.40%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.73%",
+              "MemUsage": "106.8MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "230kB / 5.28kB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "274kB / 0B",
+              "CPUPerc": "104.20%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "0.92%",
+              "MemUsage": "36.24MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "616B / 0B",
+              "PIDs": "1"
+            },
+            {
+              "BlockIO": "10.9MB / 0B",
+              "CPUPerc": "75.05%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.25%",
+              "MemUsage": "88.29MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "229kB / 5.28kB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "13.7MB / 0B",
+              "CPUPerc": "74.93%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "1.34%",
+              "MemUsage": "52.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "746B / 0B",
+              "PIDs": "1"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 5.851428917027079,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 484,
+            "DONE": 12
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "88.13%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.60%",
+              "MemUsage": "102MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "1.85MB / 3.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.33MB / 0B",
+              "CPUPerc": "88.36%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.58%",
+              "MemUsage": "101MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "1.84MB / 3.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "90.89%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.56%",
+              "MemUsage": "100.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "1.85MB / 3.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "88.28%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.58%",
+              "MemUsage": "101.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "1.85MB / 3.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 8.99263604200678,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 448,
+            "DONE": 48
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "82.88%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.65%",
+              "MemUsage": "103.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "4.4MB / 10MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "83.40%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.54%",
+              "MemUsage": "99.38MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "4.4MB / 10MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "85.57%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.58%",
+              "MemUsage": "101.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "3.7MB / 8.35MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "86.91%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.56%",
+              "MemUsage": "100.2MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "4.39MB / 10MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 12.73164945904864,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 404,
+            "DONE": 92
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "84.59%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.65%",
+              "MemUsage": "104MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "6.95MB / 16.1MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "84.12%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.53%",
+              "MemUsage": "99.1MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "6.95MB / 16.2MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "85.94%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.59%",
+              "MemUsage": "101.4MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "6.24MB / 14.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "84.57%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.56%",
+              "MemUsage": "100.3MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "6.94MB / 16.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 16.453501792042516,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 362,
+            "DONE": 134
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "91.31%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.55%",
+              "MemUsage": "100MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "8.79MB / 20.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "89.44%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.50%",
+              "MemUsage": "97.97MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "8.8MB / 20.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "76.77%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.24%",
+              "MemUsage": "87.63MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "8.55MB / 20.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "90.66%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.55%",
+              "MemUsage": "100MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "8.79MB / 20.6MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 19.5799073340022,
+          "states": {
+            "RUNNING": 3,
+            "QUEUED": 334,
+            "DONE": 163
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "85.59%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.45%",
+              "MemUsage": "96.17MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "10.9MB / 25.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "86.70%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.55%",
+              "MemUsage": "99.95MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "10.2MB / 23.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "91.26%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.51%",
+              "MemUsage": "98.42MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "10.6MB / 25MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "86.73%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.50%",
+              "MemUsage": "98.11MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "10.9MB / 25.6MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 23.331193042045925,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 300,
+            "DONE": 196
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "88.84%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.51%",
+              "MemUsage": "98.46MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "12.3MB / 28.9MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "90.13%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.50%",
+              "MemUsage": "98.09MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "12.7MB / 30.1MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "92.03%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.54%",
+              "MemUsage": "99.54MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "12.7MB / 30MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "88.36%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.45%",
+              "MemUsage": "95.96MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "13MB / 30.6MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 27.152832167048473,
+          "states": {
+            "RUNNING": 3,
+            "QUEUED": 263,
+            "DONE": 234
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "90.53%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.50%",
+              "MemUsage": "97.81MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "14.8MB / 35.1MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "89.55%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.51%",
+              "MemUsage": "98.22MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "14.6MB / 34.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "85.44%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.54%",
+              "MemUsage": "99.71MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "14.6MB / 34.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "87.31%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.45%",
+              "MemUsage": "96.15MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "14.8MB / 35.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 30.299301125050988,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 230,
+            "DONE": 266
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "88.82%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.48%",
+              "MemUsage": "97.28MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "17.1MB / 40.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "89.14%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.58MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "16.9MB / 40.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "87.41%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.55%",
+              "MemUsage": "99.88MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "16.9MB / 40MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "77.98%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.45%",
+              "MemUsage": "96.14MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "16.4MB / 39MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 33.99508391704876,
+          "states": {
+            "RUNNING": 4,
+            "QUEUED": 190,
+            "DONE": 306
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "90.56%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.23%",
+              "MemUsage": "87.25MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "19.2MB / 45.8MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "91.22%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.49%",
+              "MemUsage": "97.46MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "19.2MB / 45.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "87.22%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.51%",
+              "MemUsage": "98.48MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "19.2MB / 45.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "85.02%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.41%",
+              "MemUsage": "94.36MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "18.7MB / 44.5MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 37.86900929204421,
+          "states": {
+            "DONE": 347,
+            "QUEUED": 149,
+            "RUNNING": 4
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "88.49%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.53%",
+              "MemUsage": "99.23MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "21.7MB / 51.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "83.76%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.44%",
+              "MemUsage": "95.67MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "21.7MB / 51.8MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "88.28%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.45%",
+              "MemUsage": "96.08MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "21.7MB / 51.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.4MB / 0B",
+              "CPUPerc": "89.82%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.50%",
+              "MemUsage": "97.95MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "21MB / 50.1MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 41.586515875009354,
+          "states": {
+            "DONE": 391,
+            "QUEUED": 106,
+            "RUNNING": 3
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "90.15%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.49%",
+              "MemUsage": "97.42MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "24MB / 57.3MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "88.28%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.48%",
+              "MemUsage": "97.21MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "24.1MB / 57.3MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "89.02%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.49%",
+              "MemUsage": "97.52MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "24MB / 57.3MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.5MB / 0B",
+              "CPUPerc": "95.02%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.19%",
+              "MemUsage": "85.7MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "23.4MB / 56.2MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 45.271969000052195,
+          "states": {
+            "DONE": 429,
+            "QUEUED": 67,
+            "RUNNING": 4
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "89.74%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.34MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "26.1MB / 62.6MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "91.34%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.48%",
+              "MemUsage": "97.23MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "26.1MB / 62.3MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "91.52%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.53%",
+              "MemUsage": "99.25MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "26.1MB / 62.3MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.5MB / 0B",
+              "CPUPerc": "87.76%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.40%",
+              "MemUsage": "94.02MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "26.4MB / 62.9MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 48.43301537504885,
+          "states": {
+            "DONE": 464,
+            "QUEUED": 32,
+            "RUNNING": 4
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "80.29%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.61MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "28MB / 67.2MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "80.34%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.48%",
+              "MemUsage": "97.37MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "28MB / 66.8MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "92.85%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.54%",
+              "MemUsage": "99.39MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "28MB / 66.7MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.5MB / 0B",
+              "CPUPerc": "86.49%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.19%",
+              "MemUsage": "85.72MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "27.5MB / 66.2MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 52.25124129204778,
+          "states": {
+            "DONE": 497,
+            "RUNNING": 3
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "0.03%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.35MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "0.01%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.34MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "4.83%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.23%",
+              "MemUsage": "87.39MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.5MB / 0B",
+              "CPUPerc": "0.02%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.19%",
+              "MemUsage": "85.71MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "28.9MB / 69.6MB",
+              "PIDs": "3"
+            }
+          ]
+        },
+        {
+          "elapsedSeconds": 55.94472204201156,
+          "states": {
+            "DONE": 500
+          },
+          "containers": [
+            {
+              "BlockIO": "48.5MB / 0B",
+              "CPUPerc": "0.07%",
+              "Container": "a6bc55bb9fd4e616045eabfdf46dc0bab66cc19c4e83c99c3ba826b31ceb1766",
+              "ID": "a6bc55bb9fd4",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.35MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-1",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "8.34MB / 0B",
+              "CPUPerc": "0.08%",
+              "Container": "7761d2eaa89ebd1d207db90da89a2c3edd65b44acc76dab00e29f16e3ef9c6d0",
+              "ID": "7761d2eaa89e",
+              "MemPerc": "2.18%",
+              "MemUsage": "85.34MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-2",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "14.7MB / 0B",
+              "CPUPerc": "0.09%",
+              "Container": "b0c53c52884d03ce43900f02e94e3706dd7c8df4a55fa415058250214e36167c",
+              "ID": "b0c53c52884d",
+              "MemPerc": "2.23%",
+              "MemUsage": "87.38MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-3",
+              "NetIO": "28.9MB / 69.5MB",
+              "PIDs": "3"
+            },
+            {
+              "BlockIO": "28.5MB / 0B",
+              "CPUPerc": "0.21%",
+              "Container": "54769a9ad5746b5031b21af180bf4a6db235c683fa2234417e2b0539fb634e8c",
+              "ID": "54769a9ad574",
+              "MemPerc": "2.19%",
+              "MemUsage": "85.71MiB / 3.827GiB",
+              "Name": "photo-cloud-upgrade-worker-4",
+              "NetIO": "28.9MB / 69.6MB",
+              "PIDs": "3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

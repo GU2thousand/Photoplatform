@@ -1,0 +1,45 @@
+services:
+  backend:
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx512m -javaagent:/app/opentelemetry-javaagent.jar
+      OTEL_SDK_DISABLED: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+  worker:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  embedding-worker:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  encoder:
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  prometheus:
+    image: prom/prometheus:v3.13.3
+    volumes:
+      - ./ops/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otel.yaml"]
+    volumes: ["./ops/otel.yaml:/etc/otel.yaml:ro"]
+  tempo:
+    image: grafana/tempo:2.10.8
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["./ops/tempo.yaml:/etc/tempo.yaml:ro", "tempo-data:/var/tempo"]
+  grafana:
+    image: grafana/grafana:12.4.11
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3001}:3000"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-local-grafana-password}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+volumes:
+  prometheus-data:
+  tempo-data:
+  grafana-data:

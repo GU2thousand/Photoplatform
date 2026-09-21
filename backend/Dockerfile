@@ -6,7 +6,7 @@ COPY gradlew gradlew.bat settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY src ./src
 
-RUN chmod +x gradlew && ./gradlew bootJar --no-daemon
+RUN chmod +x gradlew && ./gradlew bootJar copyOtelAgent --no-daemon
 
 FROM eclipse-temurin:17-jre-jammy
 
@@ -17,6 +17,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/build/libs/*.jar /app/app.jar
+COPY --from=build /app/build/otel/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
+ENV OTEL_SDK_DISABLED=true OTEL_SERVICE_NAME=media-api OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none
 
 EXPOSE 8080
 

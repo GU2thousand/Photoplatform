@@ -38,9 +38,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "You do not have access to this operation");
     }
 
-    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class,
+            org.springframework.web.bind.MissingRequestHeaderException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
     public ResponseEntity<Map<String, Object>> handleInvalidParameter(Exception exception) {
         return build(HttpStatus.BAD_REQUEST, "Invalid or missing request parameter");
+    }
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String,Object>> handleStatus(org.springframework.web.server.ResponseStatusException exception) {
+        return build(HttpStatus.valueOf(exception.getStatusCode().value()),exception.getReason());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

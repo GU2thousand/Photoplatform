@@ -18,6 +18,8 @@ public record ImageResponse(
         Long teamId,
         String teamName,
         ImageAuthorResponse uploader,
-        Instant createdAt
+        Instant createdAt,
+        String processingStatus,
+        String embeddingStatus
 ) {
 }

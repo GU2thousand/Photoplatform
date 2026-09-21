@@ -1,0 +1,4 @@
+-r requirements.in
+open_clip_torch>=3,<4
+torch>=2.7,<3
+torchvision>=0.22,<1

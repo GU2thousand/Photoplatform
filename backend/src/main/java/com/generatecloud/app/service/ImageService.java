@@ -37,6 +37,7 @@ public class ImageService {
     private final StorageCleanupService storageCleanupService;
     private final TeamService teamService;
     private final TeamCollaborationWebSocketHandler webSocketHandler;
+    private final org.springframework.beans.factory.ObjectProvider<com.generatecloud.app.pipeline.MediaJobs> mediaJobs;
 
     @Transactional
     public ImageResponse upload(
@@ -109,6 +110,8 @@ public class ImageService {
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(builder.equal(root.get("visibility"), Visibility.PUBLIC));
             predicates.add(builder.equal(root.get("moderationStatus"), ModerationStatus.APPROVED));
+            predicates.add(builder.equal(root.get("processingStatus"), "READY"));
+            predicates.add(builder.isNull(root.get("deletedAt")));
             if (query != null && !query.isBlank()) {
                 String pattern = "%" + escapeLike(query.trim().toLowerCase(Locale.ROOT)) + "%";
                 predicates.add(builder.or(
@@ -135,6 +138,7 @@ public class ImageService {
     @Transactional(readOnly = true)
     public List<ImageResponse> listUserImages(UserAccount actor) {
         return imageAssetRepository.findByUploaderIdOrderByCreatedAtDesc(actor.getId()).stream()
+                .filter(image -> image.getDeletedAt() == null)
                 .map(this::toResponse)
                 .toList();
     }
@@ -143,6 +147,7 @@ public class ImageService {
     public List<ImageResponse> listTeamImages(UserAccount actor, Long teamId) {
         teamService.requireMembership(teamId, actor);
         return imageAssetRepository.findByTeamIdOrderByCreatedAtDesc(teamId).stream()
+                .filter(image -> image.getDeletedAt() == null)
                 .filter(image -> image.getVisibility() == Visibility.TEAM)
                 .map(this::toResponse)
                 .toList();
@@ -151,6 +156,7 @@ public class ImageService {
     @Transactional(readOnly = true)
     public List<ImageResponse> listPendingModeration() {
         return imageAssetRepository.findByModerationStatusOrderByCreatedAtDesc(ModerationStatus.PENDING).stream()
+                .filter(image -> image.getDeletedAt() == null && image.getProcessingStatus().equals("READY"))
                 .map(this::toResponse)
                 .toList();
     }
@@ -172,7 +178,14 @@ public class ImageService {
         if (!allowed) {
             throw new UnauthorizedAccessException("Only the uploader or an admin can delete this image");
         }
-        // The outbox and metadata removal commit together. Objects are removed only after commit.
+        if (image.getStorageLayout().equals("VERSIONED")) {
+            image.setDeletedAt(Instant.now());
+            image.setProcessingStatus("DELETING");
+            imageAssetRepository.flush();
+            mediaJobs.getObject().delete(image);
+            return;
+        }
+        // Legacy files retain the tested durable cleanup path.
         storageCleanupService.enqueue(image.getStoredFileName(), image.getThumbnailFileName());
         imageAssetRepository.delete(image);
     }
@@ -180,6 +193,7 @@ public class ImageService {
     @Transactional(readOnly = true)
     public ImageAsset getAccessibleImage(Long imageId, UserAccount actor) {
         ImageAsset image = getImage(imageId);
+        if (!image.getProcessingStatus().equals("READY")) throw new NotFoundException("Image is not ready");
         if (image.getVisibility() == Visibility.PUBLIC && image.getModerationStatus() == ModerationStatus.APPROVED) {
             return image;
         }
@@ -199,6 +213,19 @@ public class ImageService {
         throw new UnauthorizedAccessException("You do not have access to this image");
     }
 
+    @Transactional(readOnly = true)
+    public List<ImageResponse> accessibleResponses(List<Long> ids, UserAccount actor) {
+        // One persistence context reuses uploader/team entities across all hits. Avoid
+        // one connection/transaction and repeated author queries per search result.
+        imageAssetRepository.findAllById(ids);
+        return ids.stream().map(id -> toResponse(getAccessibleImage(id, actor))).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ImageResponse accessibleResponse(Long id, UserAccount actor) {
+        return toResponse(getAccessibleImage(id,actor));
+    }
+
     public ImageResponse toResponse(ImageAsset image) {
         TeamSpace team = image.getTeam();
         ImageAuthorResponse uploader = new ImageAuthorResponse(image.getUploader().getId(), image.getUploader().getName());
@@ -215,12 +242,15 @@ public class ImageService {
                 team == null ? null : team.getId(),
                 team == null ? null : team.getName(),
                 uploader,
-                image.getCreatedAt()
+                image.getCreatedAt(),
+                image.getProcessingStatus(),
+                image.getEmbeddingStatus()
         );
     }
 
     public ImageAsset getImage(Long imageId) {
         return imageAssetRepository.findById(imageId)
+                .filter(image -> image.getDeletedAt() == null)
                 .orElseThrow(() -> new NotFoundException("Image not found"));
     }
 

@@ -14,7 +14,7 @@ watch(() => [props.path, props.token, attempt.value], async (_, __, onCleanup) =
   error.value = ''
   onCleanup(() => {
     controller.abort()
-    if (blobUrl) URL.revokeObjectURL(blobUrl)
+    if (blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl)
   })
   if (!props.token) {
     source.value = buildAssetUrl(props.path)
@@ -23,7 +23,7 @@ watch(() => [props.path, props.token, attempt.value], async (_, __, onCleanup) =
   try {
     blobUrl = await fetchProtectedAsset(props.path, props.token, controller.signal)
     if (controller.signal.aborted) {
-      URL.revokeObjectURL(blobUrl)
+      if (blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl)
       return
     }
     source.value = blobUrl

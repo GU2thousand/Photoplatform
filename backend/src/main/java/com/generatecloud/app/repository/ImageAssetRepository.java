@@ -14,6 +14,10 @@ import org.springframework.data.domain.Pageable;
 public interface ImageAssetRepository extends JpaRepository<ImageAsset, Long>, JpaSpecificationExecutor<ImageAsset> {
     @Override
     @EntityGraph(attributePaths = {"uploader", "team"})
+    List<ImageAsset> findAllById(Iterable<Long> ids);
+
+    @Override
+    @EntityGraph(attributePaths = {"uploader", "team"})
     Page<ImageAsset> findAll(Specification<ImageAsset> specification, Pageable pageable);
 
     List<ImageAsset> findByVisibilityAndModerationStatusOrderByCreatedAtDesc(

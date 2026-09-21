@@ -28,6 +28,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "image_assets")
 public class ImageAsset {
 
@@ -50,11 +51,29 @@ public class ImageAsset {
     @Column(nullable = false, length = 255)
     private String originalFileName;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String storedFileName;
 
-    @Column(nullable = false, length = 255)
+    @Column(length = 255)
     private String thumbnailFileName;
+
+    @Builder.Default
+    @Column(nullable = false, length = 20)
+    private String processingStatus = "READY";
+
+    @Builder.Default
+    @Column(nullable = false, length = 20)
+    private String embeddingStatus = "NOT_REQUESTED";
+
+    @Builder.Default
+    @Column(nullable = false, length = 20)
+    private String storageLayout = "LEGACY";
+
+    @Builder.Default
+    @Column(nullable = false)
+    private int assetVersion = 1;
+
+    private Instant deletedAt;
 
     @Column(nullable = false)
     private long sizeBytes;

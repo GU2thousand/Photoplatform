@@ -8,3 +8,13 @@ backend.zip
 Users/
 .env
 .DS_Store
+worker/.venv/
+**/__pycache__/
+**/.pytest_cache/
+benchmarks/results/
+**/.terraform/
+*.tfstate*
+*.tfvars
+*.pem
+.playwright-cli/
+output/

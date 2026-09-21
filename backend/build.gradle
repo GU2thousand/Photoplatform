@@ -13,6 +13,7 @@ java {
 }
 
 configurations {
+	otelAgent
 	compileOnly {
 		extendsFrom annotationProcessor
 	}
@@ -32,6 +33,13 @@ dependencies {
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
 	implementation platform('software.amazon.awssdk:bom:2.31.26')
 	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:cloudfront'
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'io.opentelemetry:opentelemetry-api:1.66.0'
+	otelAgent 'io.opentelemetry.javaagent:opentelemetry-javaagent:2.31.1'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
@@ -45,4 +53,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+tasks.register('copyOtelAgent', Copy) {
+	from configurations.otelAgent
+	into layout.buildDirectory.dir('otel')
+	rename { 'opentelemetry-javaagent.jar' }
 }
