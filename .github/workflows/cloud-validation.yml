@@ -1,0 +1,164 @@
+name: Cloud acceptance and benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment for a provisioned disposable AWS stack
+        type: choice
+        options: [dev]
+        default: dev
+      suite:
+        description: Acceptance writes test data; scaling changes worker count and suspends autoscaling temporarily
+        type: choice
+        options: [acceptance, uploads, scaling]
+        default: acceptance
+      confirm_disposable:
+        description: I authorize test writes and selected scaling operations in this disposable environment
+        type: boolean
+        default: false
+      users:
+        description: Upload concurrency levels, separated by spaces (uploads suite)
+        type: string
+        default: '20 50 100'
+      iterations:
+        description: Upload iterations per user (1-100)
+        type: string
+        default: '5'
+      counts:
+        description: Worker task counts, separated by spaces (scaling suite, maximum 8)
+        type: string
+        default: '1 2 4 8'
+      images:
+        description: Number of images at each worker task count (1-10000)
+        type: string
+        default: '100'
+
+permissions:
+  contents: read
+
+# Do not deploy an environment during a benchmark or controlled scaling experiment.
+concurrency:
+  group: aws-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  configure:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_disposable
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      runner: ${{ steps.config.outputs.runner }}
+    steps:
+      - name: Validate explicit opt-in and private network runner selection
+        id: config
+        env:
+          DISPOSABLE: ${{ vars.DISPOSABLE_ENVIRONMENT }}
+          SUITE: ${{ inputs.suite }}
+          CLOUD_TEST_RUNNER: ${{ vars.CLOUD_TEST_RUNNER }}
+          AWS_TEST_ROLE_ARN: ${{ vars.AWS_TEST_ROLE_ARN }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          if os.environ['DISPOSABLE'].lower() != 'true':
+              raise SystemExit('Set DISPOSABLE_ENVIRONMENT=true only on a dedicated disposable test stack.')
+          if not os.environ['AWS_TEST_ROLE_ARN']:
+              raise SystemExit('A separate AWS_TEST_ROLE_ARN is required; deployment permissions are not used for test writes.')
+          runner = ['ubuntu-latest']
+          if os.environ['SUITE'] == 'scaling':
+              runner = json.loads(os.environ['CLOUD_TEST_RUNNER'] or 'null')
+              if not isinstance(runner, list) or not all(isinstance(item, str) for item in runner) or not {'self-hosted', 'photoplatform-vpc'}.issubset(runner):
+                  raise SystemExit('Scaling requires CLOUD_TEST_RUNNER labels including self-hosted and photoplatform-vpc with access to private Amazon MQ.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('runner=' + json.dumps(runner) + '\n')
+          PY
+
+  validate:
+    needs: configure
+    runs-on: ${{ fromJSON(needs.configure.outputs.runner) }}
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      API_URL: ${{ vars.API_BASE_URL }}
+      S3_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
+      CLOUDFRONT_DOMAIN: ${{ vars.CLOUDFRONT_MEDIA_DOMAIN }}
+      CLOUD_FRONTEND_ORIGIN: ${{ vars.FRONTEND_URL }}
+      STORAGE_PREFIX: ${{ vars.STORAGE_PREFIX }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ALLOW_CLOUD_TEST_WRITES: '1'
+      DISPOSABLE_ENVIRONMENT: ${{ vars.DISPOSABLE_ENVIRONMENT }}
+      TEST_OWNER_TOKEN: ${{ secrets.TEST_OWNER_TOKEN }}
+      TEST_OTHER_TOKEN: ${{ secrets.TEST_OTHER_TOKEN }}
+      TEST_ADMIN_TOKEN: ${{ secrets.TEST_ADMIN_TOKEN }}
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_WORKER_SERVICE: ${{ vars.ECS_WORKER_SERVICE }}
+      RABBITMQ_MANAGEMENT_URL: ${{ vars.RABBITMQ_MANAGEMENT_URL }}
+      RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_USERNAME }}
+      RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+      ALLOW_ECS_SCALING: ${{ inputs.suite == 'scaling' && '1' || '0' }}
+      TEST_SUITE: ${{ inputs.suite }}
+      TEST_USERS: ${{ inputs.users }}
+      TEST_ITERATIONS: ${{ inputs.iterations }}
+      TEST_COUNTS: ${{ inputs.counts }}
+      TEST_IMAGES: ${{ inputs.images }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: benchmarks/requirements-cloud.txt
+      - name: Install cloud harness dependencies
+        run: python -m pip install -r benchmarks/requirements-cloud.txt
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_TEST_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: photoplatform-tests-${{ github.run_id }}
+          role-duration-seconds: 7200
+      - name: Run the selected suite with bounded numeric arguments
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess, sys
+          pathlib.Path('cloud-results').mkdir(exist_ok=True)
+          def number(name, maximum):
+              value = os.environ[name]
+              if not value.isdigit() or not 1 <= int(value) <= maximum:
+                  raise SystemExit(f'{name} must be between 1 and {maximum}')
+              return value
+          def numbers(name, maximum):
+              values = os.environ[name].split()
+              if not values or len(values) > 8 or any(not value.isdigit() or not 1 <= int(value) <= maximum for value in values):
+                  raise SystemExit(f'{name} must contain 1-8 integers between 1 and {maximum}')
+              return values
+          suite = os.environ['TEST_SUITE']
+          if suite == 'acceptance':
+              args = ['scripts/cloud_acceptance.py', '--output', 'cloud-results/acceptance.json']
+          elif suite == 'uploads':
+              args = ['benchmarks/cloud_load.py', '--users', *numbers('TEST_USERS', 100), '--iterations', number('TEST_ITERATIONS', 100), '--output', 'cloud-results/uploads.json']
+          elif suite == 'scaling':
+              args = ['benchmarks/ecs_worker_scaling.py', '--counts', *numbers('TEST_COUNTS', 8), '--images', number('TEST_IMAGES', 10000), '--output', 'cloud-results/scaling.json']
+          else:
+              raise SystemExit('Unknown test suite')
+          subprocess.run([sys.executable, *args], check=True)
+          PY
+      - name: Preserve raw evidence on both success and failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-${{ inputs.environment }}-${{ inputs.suite }}-${{ github.sha }}
+          path: cloud-results/
+          if-no-files-found: warn
+          retention-days: 30

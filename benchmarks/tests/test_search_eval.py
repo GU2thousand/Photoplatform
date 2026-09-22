@@ -17,5 +17,9 @@ class RetrievalMetricsTest(unittest.TestCase):
         self.assertEqual(metrics([2,3],[1])['ndcg@10'],0)
         with self.assertRaises(ValueError): metrics([1],[])
 
+    def test_duplicate_results_cannot_inflate_ndcg(self):
+        result=metrics([1,1,1],[1])
+        self.assertEqual(result['ndcg@10'],1)
+
 
 if __name__=='__main__': unittest.main()

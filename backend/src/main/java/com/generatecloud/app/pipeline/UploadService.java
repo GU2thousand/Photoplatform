@@ -28,7 +28,7 @@ public class UploadService {
     private final JdbcTemplate jdbc;
     private final ImageAssetRepository images;
     private final TeamService teams;
-    private final PipelineStorage storage;
+    private final com.generatecloud.app.storage.ObjectStorageService storage;
     private final PipelineProperties settings;
     private final MediaJobs jobs;
     private final MeterRegistry metrics;
@@ -108,7 +108,8 @@ public class UploadService {
         try {
             var head = storage.head(session.key());
             if (head.contentLength()!=session.size() || !session.type().equals(head.contentType())
-                    || !id.toString().equals(head.metadata().get("upload-id"))) throw new BadRequestException("Uploaded object does not match the session");
+                    || !id.toString().equals(head.metadata().get("upload-id"))
+                    || (head.checksumSha256() != null && !Base64.getEncoder().encodeToString(HexFormat.of().parseHex(session.hash())).equals(head.checksumSha256()))) throw new BadRequestException("Uploaded object does not match the session");
         } catch (S3Exception exception) {
             if (exception.statusCode()==404) throw new BadRequestException("Upload the file before completing this session");
             throw exception;
@@ -118,6 +119,7 @@ public class UploadService {
         jdbc.update("UPDATE upload_sessions SET completed_at=now() WHERE id=?", id);
         jobs.enqueue(image,"MEDIA_PROCESS");
         metrics.counter("upload_completed").increment();
+        metrics.counter("upload_completed_bytes").increment(session.size());
         return response(session,actor,false);
     }
 
@@ -141,7 +143,7 @@ public class UploadService {
 
     private Response response(Session s, UserAccount actor, boolean sign) {
         var image=images.findById(s.mediaId()).orElseThrow();
-        PipelineStorage.UploadUrl signed=null;
+        com.generatecloud.app.storage.ObjectStorageService.UploadUrl signed=null;
         if (sign && image.getProcessingStatus().equals("UPLOADING") && s.expiresAt().isAfter(Instant.now())) {
             if(image.getTeam()!=null) teams.requireMembership(image.getTeam().getId(),actor);
             signed=storage.signUpload(s.key(),s.type(),s.size(),s.hash(),s.id().toString(),Duration.between(Instant.now(),s.expiresAt()));

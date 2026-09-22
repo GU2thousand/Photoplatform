@@ -7,8 +7,6 @@ import socket
 import time
 import uuid
 
-import boto3
-from botocore.config import Config
 from botocore.exceptions import ClientError
 import psycopg
 from psycopg.rows import dict_row
@@ -18,6 +16,7 @@ from opentelemetry.propagate import extract
 
 from .imaging import InvalidImage, process_image
 from .telemetry import configure
+from .config import database_parameters, storage_client
 
 log = logging.getLogger(__name__)
 tracer = configure("media-worker")
@@ -28,24 +27,69 @@ QUEUE_WAIT = Histogram("media_queue_wait_seconds", "Time from job creation to at
 END_TO_END = Histogram("media_end_to_end_seconds", "Upload session creation to media readiness", buckets=(1,5,10,30,60,120,300,900))
 ACTIVE = Gauge("worker_active_jobs", "Jobs executing in this worker")
 STORAGE_TIME = Histogram("storage_request_duration_seconds", "Storage request duration", ["operation"])
+STORAGE_BYTES = Counter("worker_storage_bytes_total", "Successfully transferred payload bytes", ["operation"])
+STORAGE_ERRORS = Counter("worker_storage_errors_total", "Storage operation failures", ["operation"])
+DB_ERRORS = Counter("worker_database_errors_total", "Database failures", ["operation"])
+DB_TIME = Histogram("worker_database_request_duration_seconds", "Client database operation latency", ["operation"], buckets=(.001,.005,.01,.025,.05,.1,.25,.5,1,5,30))
+DB_CONNECTIONS = Gauge("worker_database_connections", "Open worker database connections")
 MAX_BYTES = int(os.getenv("UPLOAD_MAX_BYTES", str(15 * 1024 * 1024)))
 MODEL_VERSION = os.getenv("CLIP_MODEL_VERSION", "clip-vit-b32-openai-v1")
 
 
+class ObservedConnection:
+    """Measure actual client operations without recording SQL or credential values."""
+    def __init__(self, conn):
+        self.conn = conn
+        DB_CONNECTIONS.inc()
+
+    def __getattr__(self, name):
+        return getattr(self.conn, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        try:
+            return self.conn.__exit__(*args)
+        finally:
+            DB_CONNECTIONS.dec()
+
+    def execute(self, *args, **kwargs):
+        with DB_TIME.labels("query").time():
+            try:
+                return self.conn.execute(*args, **kwargs)
+            except psycopg.Error:
+                DB_ERRORS.labels("query").inc()
+                raise
+
+
 def connection():
-    return psycopg.connect(os.environ["DATABASE_URL"], autocommit=True, row_factory=dict_row, connect_timeout=5)
+    # Only connection acquisition retries. Never blindly replay SQL transactions
+    # after a disconnect: job claim tokens, leases and the outbox own recovery.
+    attempts = max(1, min(5, int(os.getenv("DATABASE_CONNECT_ATTEMPTS", "3"))))
+    for attempt in range(attempts):
+        with DB_TIME.labels("connect").time():
+            try:
+                conn = psycopg.connect(os.getenv("DATABASE_URL", ""), autocommit=True,
+                    row_factory=dict_row, **database_parameters())
+                return ObservedConnection(conn)
+            except psycopg.OperationalError:
+                DB_ERRORS.labels("connect").inc()
+                if attempt == attempts - 1:
+                    raise
+        time.sleep(min(4, 2 ** attempt))
 
 
 def object_key(relative):
     return "/".join(filter(None, [os.getenv("STORAGE_PREFIX", "generate-cloud").strip("/"), relative]))
 
 
-def storage_client():
-    return boto3.client("s3", endpoint_url=os.getenv("STORAGE_ENDPOINT") or None,
-        region_name=os.getenv("STORAGE_REGION", "us-east-1"),
-        aws_access_key_id=os.getenv("STORAGE_ACCESS_KEY"), aws_secret_access_key=os.getenv("STORAGE_SECRET_KEY"),
-        config=Config(signature_version="s3v4", connect_timeout=5, read_timeout=30,
-                      retries={"max_attempts": 2}, s3={"addressing_style": "path" if os.getenv("STORAGE_PATH_STYLE_ACCESS", "true")=="true" else "virtual"}))
+def fault_after_s3(job):
+    """Explicit disposable-task fault; replacement task must omit the override."""
+    if (os.getenv("DISPOSABLE_ENVIRONMENT", "false").lower() == "true"
+            and os.getenv("WORKER_FAULT_AFTER_S3_JOB_ID") == str(job["id"])):
+        log.warning("Injecting process loss after S3 writes for job=%s", job["id"])
+        os._exit(86)
 
 
 class Worker:
@@ -56,13 +100,20 @@ class Worker:
 
     def read(self, key):
         with STORAGE_TIME.labels("get").time(), tracer.start_as_current_span("storage.download"):
-            response = self.s3.get_object(Bucket=self.bucket, Key=object_key(key))
-            with response["Body"] as stream:
-                if response["ContentLength"] > MAX_BYTES:
-                    raise InvalidImage("File exceeds byte limit")
-                data = stream.read(MAX_BYTES + 1)
+            try:
+                response = self.s3.get_object(Bucket=self.bucket, Key=object_key(key))
+                with response["Body"] as stream:
+                    if response["ContentLength"] > MAX_BYTES:
+                        raise InvalidImage("File exceeds byte limit")
+                    data = stream.read(MAX_BYTES + 1)
+            except InvalidImage:
+                raise
+            except Exception:
+                STORAGE_ERRORS.labels("get").inc()
+                raise
             if len(data) > MAX_BYTES:
                 raise InvalidImage("File exceeds byte limit")
+            STORAGE_BYTES.labels("get").inc(len(data))
             return data
 
     def handle(self, job_id, headers=None):
@@ -94,10 +145,11 @@ class Worker:
                     QUEUE_WAIT.labels(job["job_type"]).observe(max(0,time.time()-job["created_at"].timestamp()))
                     try:
                         with DURATION.labels(job["job_type"]).time():
-                            if job["job_type"] == "MEDIA_PROCESS": self.process(conn, job)
-                            elif job["job_type"] == "EMBED": self.embed(conn, job)
-                            elif job["job_type"] == "DELETE": self.delete(conn, job)
-                        JOBS.labels(job["job_type"], "completed").inc()
+                            if job["job_type"] == "MEDIA_PROCESS": outcome = self.process(conn, job)
+                            elif job["job_type"] == "EMBED": outcome = self.embed(conn, job)
+                            elif job["job_type"] == "DELETE": outcome = self.delete(conn, job)
+                            else: raise InvalidImage("Unsupported job type")
+                        JOBS.labels(job["job_type"], outcome or "completed").inc()
                     except Exception as exc:
                         self.fail(conn, job, exc)
                     return True
@@ -112,7 +164,7 @@ class Worker:
     def process(self, conn, job):
         image = conn.execute("SELECT * FROM image_assets WHERE id=%s", (job["media_id"],)).fetchone()
         if image["deleted_at"] or image["asset_version"] != job["asset_version"]:
-            self.finish(conn,job,"CANCELLED"); return
+            self.finish(conn,job,"CANCELLED"); return "cancelled"
         session = conn.execute("SELECT * FROM upload_sessions WHERE media_id=%s", (job["media_id"],)).fetchone()
         if not session:
             raise InvalidImage("Missing upload session")
@@ -128,14 +180,20 @@ class Worker:
             filename = "original" if variant.name == "original" else variant.name + ".webp"
             key = f"media/{image['id']}/v{job['asset_version']}/{job['pipeline_version']}/{filename}"
             with STORAGE_TIME.labels("put").time(), tracer.start_as_current_span("storage.variant"):
-                self.s3.put_object(Bucket=self.bucket, Key=object_key(key), Body=variant.data,
-                    ContentType=variant.content_type, CacheControl="public, max-age=31536000, immutable",
-                    Metadata={"sha256":variant.sha256})
+                try:
+                    self.s3.put_object(Bucket=self.bucket, Key=object_key(key), Body=variant.data,
+                        ContentType=variant.content_type, CacheControl="public, max-age=31536000, immutable",
+                        Metadata={"sha256":variant.sha256})
+                    STORAGE_BYTES.labels("put").inc(len(variant.data))
+                except Exception:
+                    STORAGE_ERRORS.labels("put").inc()
+                    raise
             rows.append((image["id"],job["asset_version"],variant.name,key,variant.content_type,len(variant.data),variant.width,variant.height,variant.sha256))
+        fault_after_s3(job)
         with conn.transaction():
             current = conn.execute("SELECT deleted_at,asset_version FROM image_assets WHERE id=%s FOR UPDATE", (image["id"],)).fetchone()
             if current["deleted_at"] or current["asset_version"]!=job["asset_version"]:
-                self.finish(conn,job,"CANCELLED"); return  # DELETE runs after this lock is released and cleans the entire prefix.
+                self.finish(conn,job,"CANCELLED"); return "cancelled"  # DELETE cleans the prefix after this lock releases.
             for row in rows:
                 conn.execute("""
                     INSERT INTO media_variants(media_id,asset_version,variant,object_key,content_type,size_bytes,width,height,content_sha256)
@@ -161,7 +219,7 @@ class Worker:
     def embed(self, conn, job):
         image = conn.execute("SELECT * FROM image_assets WHERE id=%s",(job["media_id"],)).fetchone()
         if image["deleted_at"] or image["asset_version"]!=job["asset_version"]:
-            self.finish(conn,job,"CANCELLED"); return
+            self.finish(conn,job,"CANCELLED"); return "cancelled"
         if job["pipeline_version"]!=MODEL_VERSION:
             raise InvalidImage("Model version mismatch")
         source = conn.execute("SELECT object_key FROM media_variants WHERE media_id=%s AND asset_version=%s AND variant='medium'",(image["id"],job["asset_version"])).fetchone()
@@ -174,7 +232,7 @@ class Worker:
         with conn.transaction():
             current = conn.execute("SELECT deleted_at,asset_version FROM image_assets WHERE id=%s FOR UPDATE",(image["id"],)).fetchone()
             if current["deleted_at"] or current["asset_version"]!=job["asset_version"]:
-                self.finish(conn,job,"CANCELLED"); return
+                self.finish(conn,job,"CANCELLED"); return "cancelled"
             conn.execute("""
                 INSERT INTO media_embeddings(media_id,asset_version,model_version,embedding) VALUES(%s,%s,%s,%s::vector)
                 ON CONFLICT(media_id,asset_version,model_version) DO UPDATE SET embedding=excluded.embedding,created_at=now()
@@ -185,14 +243,17 @@ class Worker:
     def delete(self, conn, job):
         image = conn.execute("SELECT deleted_at FROM image_assets WHERE id=%s",(job["media_id"],)).fetchone()
         if not image or not image["deleted_at"]:
-            self.finish(conn,job,"CANCELLED"); return
+            self.finish(conn,job,"CANCELLED"); return "cancelled"
         prefix = object_key(f"media/{job['media_id']}/")
         with STORAGE_TIME.labels("delete").time(), tracer.start_as_current_span("storage.delete_variants"):
-            for page in self.s3.get_paginator("list_object_versions").paginate(Bucket=self.bucket,Prefix=prefix):
-                # Explicit version IDs also cover the "null" version of an unversioned
-                # or suspended bucket. A key-only delete would only add a marker.
-                for item in page.get("Versions", []) + page.get("DeleteMarkers", []):
-                    self.s3.delete_object(Bucket=self.bucket, Key=item["Key"], VersionId=item["VersionId"])
+            try:
+                for page in self.s3.get_paginator("list_object_versions").paginate(Bucket=self.bucket,Prefix=prefix):
+                    # Explicit version IDs also cover unversioned/suspended buckets.
+                    for item in page.get("Versions", []) + page.get("DeleteMarkers", []):
+                        self.s3.delete_object(Bucket=self.bucket, Key=item["Key"], VersionId=item["VersionId"])
+            except Exception:
+                STORAGE_ERRORS.labels("delete").inc()
+                raise
         with conn.transaction():
             conn.execute("DELETE FROM media_embeddings WHERE media_id=%s",(job["media_id"],))
             conn.execute("DELETE FROM media_variants WHERE media_id=%s",(job["media_id"],))

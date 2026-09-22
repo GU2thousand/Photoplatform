@@ -101,6 +101,23 @@ class RuntimeTests(unittest.TestCase):
             self.worker.process(self.conn, self.job)
         self.assert_no_variant_commit()
 
+    def test_targeted_process_loss_occurs_after_objects_before_metadata(self):
+        self.rows(self.image, self.session)
+        with patch("app.runtime.fault_after_s3", side_effect=SystemExit(86)) as fault:
+            with self.assertRaises(SystemExit):
+                self.worker.process(self.conn, self.job)
+        self.assertEqual(self.worker.s3.put_object.call_count, 5)
+        fault.assert_called_once_with(self.job)
+        self.assert_no_variant_commit()
+        self.conn.transaction.assert_not_called()
+
+    def test_cancelled_job_does_not_inflate_completed_processing_throughput(self):
+        self.rows(self.job, {"locked": True}, self.job, {"pg_advisory_unlock": True})
+        self.worker.process = MagicMock(return_value="cancelled")
+        with patch("app.runtime.connection", return_value=self.conn), patch("app.runtime.JOBS") as jobs:
+            self.assertTrue(self.worker.handle(self.job["id"]))
+        jobs.labels.assert_called_once_with("MEDIA_PROCESS", "cancelled")
+
     def test_delete_storage_failure_preserves_rows_for_retry(self):
         self.rows({"deleted_at": datetime.now(timezone.utc)})
         self.worker.s3.get_paginator.return_value.paginate.return_value = [

@@ -1,3 +1,7 @@
+# Earlier local deployment and operations guide
+
+For the current AWS upgrade, use [AWS production-like architecture](aws-production.md), [modular infrastructure](../infra/README.md), and [OIDC deployment](../.github/AWS_DEPLOYMENT.md). The local operations material below remains useful; the legacy S3/CloudFront sample is retained for existing state and is superseded for new AWS deployments.
+
 # Cloud media deployment and operations
 
 This guide describes the implemented pipeline and the configuration required to operate it. Local validation is recorded separately in [validation.md](validation.md). Neither the Render Blueprint nor the AWS Terraform sample has been deployed by this change.
@@ -117,9 +121,9 @@ terraform -chdir=infra/aws validate
 
 Do not commit private keys, `.tfvars`, Terraform state, or cloud credentials. Review state-backend encryption/locking and key rotation procedures for real use.
 
-**Every CloudFront behavior must require the trusted signing key group.** API authorization decides whether an approved public asset may receive a 60-second CDN URL. Private/team/pending media is served by short-lived S3 URLs with response cache overrides (`private, no-store`), so it never enters the public CDN delivery path. The distribution must never be a public alternative path to private keys in the same bucket. See [AWS signed URL behavior](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-signed-urls.html).
+**Every CloudFront behavior must require the trusted signing key group.** The upgraded MediaUrlService signs all authorized versioned media through CloudFront when configured; private/team/pending media still requires backend account authorization. Browser responses use `private, no-store`; signed S3 delivery remains the non-CDN path. The distribution must never be a public alternative path to private keys in the same bucket. See [AWS signed URL behavior](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-signed-urls.html).
 
-The worker writes immutable-origin cache headers on versioned objects. CloudFront caches these immutable bytes at the edge, and the sample's response headers policy limits browser `max-age` to 60 seconds. The signed-URL query fields are not part of the edge cache key; signatures are still validated on network requests. [AWS cache documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html) explains the distinction between origin/edge TTL and browser cache headers.
+The worker writes immutable-origin cache headers on versioned objects. CloudFront caches these bytes at the edge. The legacy sample below used a 60-second browser max-age; new deployments use the modular infrastructure's `private, no-store` viewer response policy. The signed-URL query fields are not part of the edge cache key; signatures are still validated on network requests. [AWS cache documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html) explains the distinction between origin/edge TTL and browser cache headers.
 
 Changing moderation or deleting an image prevents new authorized URLs, but does not invalidate previously issued capabilities instantly. A URL may work for the rest of its 60-second lifetime; a previously fetched public response may remain browser-fresh for 60 seconds after retrieval. Downloaded copies cannot be recalled. Immediate invalidation requirements need a separate design and actual CDN tests. CloudFront hit ratio, origin egress, latency, and revocation behavior have not been measured by the local integration tests.
 
@@ -204,7 +208,7 @@ Example IDs must be replaced with real labeled assets in the test corpus. Keep p
 - 旧图 ID 和路径保留，迁移不会自动转存、算 hash 或回填向量。先对数据库与对象存储做备份恢复演练，在隔离副本上验证 Flyway，再切换生产。接受新格式上传后不能直接回滚旧程序，也不能通过关闭 pipeline 完成回滚。
 - worker 使用会话 advisory lock，需要直连 PostgreSQL 或已验证的会话连接池，不能使用 transaction pooling。处理、重试、DLQ 和删除状态以数据库为准，broker 消息允许重复投递。
 - API 主端口的 `/readyz` 只表示 API/数据库就绪；还应监控队列积压、发布失败、DLQ、worker 与存储。9091/9100 metrics 留在内部网络。
-- CloudFront 所有行为都必须验签。私密、团队、待审核图片不走公共 CDN 路径；已签发 60 秒 URL 和已下载副本无法立即撤回，公开响应还有最多 60 秒浏览器缓存。
+- CloudFront 所有行为都必须验签。私密、团队、待审核图片必须先经过账号授权，启用 CDN 后同样使用短期 signed CloudFront URL；已签发 60 秒 URL 和已下载副本无法立即撤回，公开响应还有最多 60 秒浏览器缓存。
 - S3 版本管理中的普通删除产生 delete marker，未必物理删除旧版本；Terraform 仅对 staging 配置过期策略。备份、副本和正式媒体历史版本的保留/彻底清除必须另行设计。
 - 原图保持原字节，可能保留 EXIF/GPS；只有派生预览去除这些元数据。不要将“预览去元数据”描述为“所有图片都已清除隐私信息”。
 - 实际验证范围以 [validation.md](validation.md) 为准。扩容工具、RRF、pgvector 和模型代码存在，不代表已证明线性扩容、生产高并发或检索质量提升。

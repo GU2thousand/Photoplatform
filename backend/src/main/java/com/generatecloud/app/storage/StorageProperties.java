@@ -9,13 +9,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.storage")
 public class StorageProperties {
 
-    private String provider = "s3";
+    private String provider = "minio";
     private String root = "./data/storage";
     private String bucket = "generatecloud-assets";
     private String region = "us-east-1";
-    private String endpoint = "http://localhost:9000";
-    private String accessKey = "minioadmin";
-    private String secretKey = "minioadmin";
+    private String endpoint = "";
+    private String accessKey = "";
+    private String secretKey = "";
     private boolean pathStyleAccess = true;
     private boolean autoCreateBucket = true;
     private String prefix = "generate-cloud";

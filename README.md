@@ -4,30 +4,42 @@
 
 # Generate Cloud / Photoplatform
 
-**Direct Upload · Async Processing · Object Storage · Semantic Search**
+**AWS Cloud Architecture · Direct Upload · Reliable Workers · Semantic Search**
 
 A Vue 3 / Spring Boot media platform with private object storage, durable RabbitMQ processing, independently scalable Python workers, and optional CLIP / pgvector retrieval. Public galleries, personal libraries, team membership, moderation, and WebSocket collaboration remain part of the product.
 
-Implementation and verification are separate: see [validation evidence](docs/validation.md), [deployment and operations](docs/cloud-upgrade.md), and the [benchmark harnesses](benchmarks/). Cloud deployment, CDN behavior, and retrieval quality require their own environment-specific checks.
+The AWS upgrade adds modular Terraform, private S3/CloudFront, RDS, Amazon MQ, independent ECS Fargate services, backlog-based scaling, and GitHub OIDC deployment. See [AWS architecture and phase gates](docs/aws-production.md), [infrastructure](infra/README.md), [CI/CD setup](.github/AWS_DEPLOYMENT.md), [failure testing](docs/failure-testing.md), and [cloud benchmarks](docs/cloud-benchmarks.md).
+
+**Verification:** [AWS upgrade checks and remaining gates](docs/aws-validation.md) are separate from the [earlier local measurements](docs/validation.md). Configuration and CI success do not establish a deployed or benchmarked AWS system.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  Browser -->|metadata, permissions, upload sessions|API[Spring Boot API]
-  Browser -->|presigned PUT|S3[Private S3-compatible storage]
-  API --> DB[(PostgreSQL + pgvector)]
-  DB -->|transactional outbox|API
-  API --> MQ[RabbitMQ]
-  MQ --> Worker[Python media workers]
+flowchart TB
+  Browser --> FrontCDN[CloudFront: Vue static app]
+  FrontCDN --> Static[Private frontend S3]
+  Browser -->|HTTPS REST / WebSocket|ALB[Application Load Balancer]
+  Browser -->|Presigned PUT / SHA-256|S3[Private versioned Amazon S3]
+  Browser -->|Authorized signed URL|MediaCDN[CloudFront: signed media]
+  MediaCDN -->|OAC / SigV4|S3
+  ALB --> API[ECS Fargate: Spring Boot API x2]
+  API --> DB[(Private RDS PostgreSQL + pgvector)]
+  DB -->|Transactional outbox|API
+  API --> MQ[Private Amazon MQ / RabbitMQ]
+  MQ --> Worker[ECS Fargate: media workers 1..8]
   Worker --> S3
   Worker --> DB
-  MQ --> Embed[Optional CLIP embedding workers]
-  Embed --> S3
+  MQ --> Embed[Optional embedding workers]
   Embed --> DB
-  API --> Encoder[Optional CLIP text encoder]
-  Browser -->|short-lived signed GET|CDN[Optional signed CloudFront]
-  CDN --> S3
+  API --> Encoder[Optional private CLIP encoder]
+  Metrics[CloudWatch backlog per task] -->|Target tracking|Worker
+  API --> OTel[OpenTelemetry / CloudWatch]
+  Worker --> OTel
+  CI[GitHub Actions / OIDC] --> ECR[Amazon ECR]
+  ECR --> API
+  ECR --> Worker
+  IaC[Terraform: dev / prod] -. provisions .-> ALB
+  IaC -. provisions .-> DB
 ```
 
 ## Run locally
@@ -40,7 +52,7 @@ docker compose up -d --scale worker=4
 
 Open [localhost:5173](http://localhost:5173); the API is at [localhost:8081](http://localhost:8081). Host ports bind to loopback. The default demo seeds `avery@generatecloud.local / creator123` and `admin@generatecloud.local / admin123`; seeding is disabled by the application and production Blueprint defaults. Keep this demo stack local. `docker compose stop` preserves volumes; `docker compose down -v` deletes them.
 
-PostgreSQL 16 includes pgvector even when ML services are disabled. MinIO uses a pinned Quay release; RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
+PostgreSQL 16 includes pgvector even when ML services are disabled. Existing local RabbitMQ 4.1 volumes keep their default image; `RABBITMQ_IMAGE` can select a fresh test broker, and CI uses RabbitMQ 4.3. Do not jump an existing broker data volume across unsupported upgrade paths. MinIO uses a pinned Quay release; RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
 
 ```bash
 SEMANTIC_SEARCH_ENABLED=true docker compose --profile search up -d --build
@@ -77,9 +89,9 @@ The prefix defaults to `generate-cloud`; keep it identical across services and i
 
 ## Public/private access and CDN
 
-`GET /api/files/{imageId}/url?variant=medium` checks permissions and returns a 60-second signed URL. The URL response and redirects are `private, no-store`; full API access tokens are never placed in image URLs. Private, team, and pending images use signed S3 URLs with `private, no-store`. Only `PUBLIC + APPROVED + READY` images can receive signed CDN URLs.
+`GET /api/files/{imageId}/url?variant=medium` checks permissions and returns a signed URL (60 seconds by default, configurable from 1 to 300). The URL response and redirects are `private, no-store`; full API access tokens are never placed in image URLs. With CloudFront configured, all authorized versioned media receives a short-lived CloudFront URL. Only `PUBLIC + APPROVED + READY` permits anonymous authorization; private/team/pending content requires the appropriate account. Without CloudFront, the same authorization precedes a signed S3 URL. Both delivery modes use `private, no-store` browser responses.
 
-The optional [AWS sample](infra/aws/main.tf) keeps S3 private, restricts the origin to CloudFront, and requires viewer signatures on the entire distribution. Public edge objects can remain immutable while the sample caps browser freshness at 60 seconds. An already issued URL and downloaded copy cannot be instantly revoked. Do not add an unsigned CDN behavior: knowledge of an object path must not bypass application authorization.
+The [AWS modules](infra/README.md) keep S3 private, restrict the origin with OAC, and require viewer signatures on every media behavior. Media responses use `private, no-store` in the browser while immutable bytes can be cached at the edge. An already issued URL and downloaded copy cannot be instantly revoked. Do not add an unsigned CDN behavior: knowledge of an object path must not bypass application authorization.
 
 ## Semantic search and duplicates
 
@@ -90,6 +102,8 @@ The optional encoder uses normalized 512-dimensional CLIP ViT-B/32 embeddings ta
 `GET /api/images/{imageId}/duplicates?distance=8` returns accessible SHA-256 matches and pHash candidates with Hamming distance. It is a suggestion, never automatic deletion or shared-file deduplication. A [search evaluation harness](benchmarks/search_eval.py) calculates Recall@5, Recall@10, nDCG@10, and latency for the same labeled queries and permission scope.
 
 ## Reliability and retries
+
+Existing team live events fan out through per-instance RabbitMQ queues when the pipeline is enabled, so API replicas can serve different team members. Publication occurs after commit, remote delivery rechecks membership, and live events remain best effort; processing status stays available through durable API polling.
 
 The database outbox survives broker outages; publication requires a routed publisher confirmation. Workers use manual acknowledgements, bounded prefetch, durable state, claims, and per-media PostgreSQL advisory locks. Duplicate deliveries reuse unique job/variant identities. Expired leases become eligible for redelivery; processing and deletion share a lock. Hourly reconciliation removes late staging writes and orphan variants after a lost database connection.
 
@@ -113,7 +127,7 @@ The API readiness endpoint is `/readyz`. Actuator/Prometheus runs on internal po
 
 ## Deployment and verification
 
-[render.yaml](render.yaml) describes a static frontend, API, independent media worker, and private-network PostgreSQL 16. Supply an external managed RabbitMQ broker and private S3 bucket; optional ML services and CDN are documented separately. The manifest is a deployment template, not evidence of a deployed service. [Deployment guidance](docs/cloud-upgrade.md) covers TLS, CORS, signed upload headers, migrations, access policy, backups, and restore.
+The primary AWS deployment is defined in [infra/](infra/README.md) with [OIDC delivery](.github/AWS_DEPLOYMENT.md). The earlier [render.yaml](render.yaml) also describes a static frontend, API, independent media worker, and private-network PostgreSQL 16. Supply an external managed RabbitMQ broker and private S3 bucket; optional ML services and CDN are documented separately. The manifest is a deployment template, not evidence of a deployed service. [Deployment guidance](docs/cloud-upgrade.md) covers TLS, CORS, signed upload headers, migrations, access policy, backups, and restore.
 
 ```bash
 (cd backend && ./gradlew test)
@@ -134,11 +148,13 @@ No cloud resources are provisioned by a local build. S3-compatible providers mus
 
 # Generate Cloud / Photoplatform
 
-**对象存储直传 · 异步处理 · 私有对象存储 · 语义搜索**
+**AWS 云架构 · 对象存储直传 · 可靠异步处理 · 语义搜索**
 
 基于 Vue 3、Spring Boot、PostgreSQL 的图片平台，新增 RabbitMQ 持久化任务、可独立扩容的 Python worker，以及可选的 CLIP / pgvector 检索。保留公共图库、个人空间、团队权限、审核和 WebSocket 协作。
 
-实现与验证分别记录：[验证证据](docs/validation.md)、[部署与运维](docs/cloud-upgrade.md)、[性能测试工具](benchmarks/)。本地构建通过不等于云部署、CDN 或搜索效果已经验证。
+本轮新增模块化 Terraform、私有 S3 / CloudFront、RDS、Amazon MQ、独立 ECS Fargate 服务、积压指标扩缩容及 GitHub OIDC 部署。参见 [AWS 架构与阶段验收](docs/aws-production.md)、[基础设施](infra/README.md)、[CI/CD](.github/AWS_DEPLOYMENT.md)、[故障测试](docs/failure-testing.md)、[云性能评测](docs/cloud-benchmarks.md)。
+
+[本轮验证和待完成事项](docs/aws-validation.md)与[之前的本地测量](docs/validation.md)单独记录。代码、配置和 CI 通过，不代表 AWS 已部署或云性能已经测量。
 
 ## 架构与运行
 
@@ -169,9 +185,9 @@ worker 校验像素上限、修正 EXIF 方向、计算 SHA-256/pHash，保留�
 
 ## 公私访问与 CDN
 
-`GET /api/files/{id}/url?variant=medium` 完成权限检查后返回 60 秒 signed URL。私密、团队、待审核文件通过 signed S3 URL 读取，使用 `private, no-store`；只有 `PUBLIC + APPROVED + READY` 可得到 signed CDN URL。API 登录 token 不进入图片 URL。
+`GET /api/files/{id}/url?variant=medium` 完成权限检查后返回 signed URL，默认 60 秒，可配置为 1–300 秒。启用 CloudFront 后，所有已授权的版本化媒体均获得短期 CloudFront signed URL；只有 `PUBLIC + APPROVED + READY` 允许匿名请求，私密、团队、待审核文件需要对应账号权限。未启用 CDN 时，同一权限检查后返回 signed S3 URL，两条路径的浏览器响应都使用 `private, no-store`。API 登录 token 不进入图片 URL。
 
-[AWS 示例](infra/aws/main.tf) 保持 bucket 私有，CloudFront 所有请求都要求签名。边缘缓存保留不可变对象，浏览器缓存时间限制为 60 秒。已签发 URL 和已下载副本无法立即撤销，不能为了公开图片增加不验签的 CDN 行为。
+[AWS 模块](infra/README.md) 保持 bucket 私有并使用 OAC，CloudFront 每个媒体行为都要求签名。边缘缓存保留不可变对象，浏览器响应使用 `private, no-store`。已签发 URL 和已下载副本无法立即撤销，不能为了公开图片增加不验签的 CDN 行为。
 
 ## 语义搜索、混合检索与重复提示
 
@@ -182,6 +198,8 @@ CLIP ViT-B/32 输出带模型版本的 512 维归一化向量，pgvector 使用�
 `GET /api/images/{id}/duplicates?distance=8` 仅提示有权限查看的 SHA-256 相同文件与 pHash 相近图片，返回 Hamming distance，不会自动删除或跨用户共享文件。搜索评测工具支持同一权限范围下的 Recall@5、Recall@10、nDCG@10 和延迟比较。
 
 ## 可靠性与重试
+
+启用 pipeline 后，已有团队实时事件通过 RabbitMQ 向各 API 副本分发，在数据库提交后发布，并在远端投递时重新检查成员权限。实时通知采用尽力投递，处理状态仍通过持久化 API 轮询获取。
 
 outbox 在 broker 故障时保留发布意图，收到路由与 publisher confirm 后才记录发布成功。worker 使用手动 ACK、受限预取、持久化 claim/lease、唯一任务与变体约束、按媒体加锁来处理重复投递。处理与删除共用 PostgreSQL 会话 advisory lock；每小时重新清理迟到的 staging 写入，以及数据库连接中断后可能残留的派生对象。
 

@@ -2,19 +2,13 @@ package com.generatecloud.app.storage;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import java.net.URI;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -26,7 +20,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.storage.provider", havingValue = "s3", matchIfMissing = true)
+@ConditionalOnExpression("'${app.storage.provider:s3}' == 's3' or '${app.storage.provider:s3}' == 'minio' or '${app.storage.provider:s3}' == 'aws'")
 public class S3ObjectStorage implements ObjectStorage {
 
     private final StorageProperties properties;
@@ -34,21 +28,8 @@ public class S3ObjectStorage implements ObjectStorage {
 
     @PostConstruct
     void init() {
-        S3ClientBuilder builder = S3Client.builder()
-                .region(Region.of(properties.getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(properties.getAccessKey(), properties.getSecretKey())
-                ))
-                .serviceConfiguration(S3Configuration.builder()
-                        .pathStyleAccessEnabled(properties.isPathStyleAccess())
-                        .build());
-
-        if (properties.getEndpoint() != null && !properties.getEndpoint().isBlank()) {
-            builder.endpointOverride(URI.create(properties.getEndpoint()));
-        }
-
-        s3Client = builder.build();
-        if (properties.isAutoCreateBucket()) {
+        s3Client = S3ClientFactory.client(properties);
+        if (!S3ClientFactory.isAws(properties) && properties.isAutoCreateBucket()) {
             ensureBucket();
         }
     }

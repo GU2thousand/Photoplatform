@@ -16,5 +16,12 @@ benchmarks/results/
 *.tfstate*
 *.tfvars
 *.pem
+# Public AWS RDS trust anchors, never a CloudFront signing private key.
+!worker/certs/global-bundle.pem
 .playwright-cli/
 output/
+work/
+artifacts/
+deployment-results/
+*.tfplan
+**/crash.log

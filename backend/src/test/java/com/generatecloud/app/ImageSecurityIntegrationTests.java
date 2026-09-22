@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.generatecloud.app.pipeline.DeliveryService;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -51,6 +53,7 @@ class ImageSecurityIntegrationTests {
     @Autowired StorageProperties storageProperties;
     @Autowired PlatformTransactionManager transactionManager;
     @MockitoSpyBean LocalObjectStorage storage;
+    @MockitoBean DeliveryService delivery;
 
     private UserAccount owner;
     private UserAccount outsider;
@@ -59,6 +62,7 @@ class ImageSecurityIntegrationTests {
     @BeforeEach
     void fixtures() throws Exception {
         reset(storage);
+        reset(delivery);
         jobs.deleteAll();
         images.deleteAll();
         members.deleteAll();
@@ -68,6 +72,42 @@ class ImageSecurityIntegrationTests {
         owner = user("Owner", "owner@example.test", Role.USER);
         outsider = user("Outsider", "outsider@example.test", Role.USER);
         admin = user("Admin", "admin@example.test", Role.ADMIN);
+    }
+
+    @Test
+    void signedUrlEndpointAuthorizesReadyLiveAssetsBeforeCallingDelivery() throws Exception {
+        ImageAsset privateImage = image("Private", "Personal", "Gallery", "private", Visibility.PRIVATE, ModerationStatus.APPROVED, null);
+        privateImage.setStorageLayout("VERSIONED");
+        images.saveAndFlush(privateImage);
+        mvc.perform(get("/api/files/" + privateImage.getId() + "/url").header("Authorization", token(outsider)))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(delivery);
+        when(delivery.url(any(), eq("original"))).thenReturn("https://media.example.test/media/1/v1/original?Signature=signed");
+        when(delivery.ttlSeconds()).thenReturn(37);
+        mvc.perform(get("/api/files/" + privateImage.getId() + "/url").header("Authorization", token(owner)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.expiresIn").value(37))
+                .andExpect(header().string("Cache-Control", "private, no-store"));
+        reset(delivery);
+        privateImage.setProcessingStatus("PROCESSING");
+        images.saveAndFlush(privateImage);
+        mvc.perform(get("/api/files/" + privateImage.getId() + "/url").header("Authorization", token(owner)))
+                .andExpect(status().isNotFound());
+        privateImage.setProcessingStatus("READY");
+        privateImage.setDeletedAt(Instant.now());
+        images.saveAndFlush(privateImage);
+        mvc.perform(get("/api/files/" + privateImage.getId() + "/url").header("Authorization", token(owner)))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(delivery);
+    }
+
+    @Test
+    void pendingPublicMediaDoesNotReceiveAnonymousSignedUrl() throws Exception {
+        ImageAsset pending = image("Pending", "Moderation", "Gallery", "pending", Visibility.PUBLIC, ModerationStatus.PENDING, null);
+        pending.setStorageLayout("VERSIONED");
+        images.saveAndFlush(pending);
+        mvc.perform(get("/api/files/" + pending.getId() + "/url")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/files/" + pending.getId() + "/url").header("Authorization", token(outsider))).andExpect(status().isForbidden());
+        verifyNoInteractions(delivery);
     }
 
     @Test

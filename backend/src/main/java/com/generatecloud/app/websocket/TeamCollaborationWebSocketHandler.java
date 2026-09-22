@@ -16,8 +16,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.PingMessage;
 import org.springframework.web.socket.TextMessage;
@@ -27,6 +31,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
@@ -34,6 +39,14 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
     private final UserAccountRepository userAccountRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final Map<Long, Set<WebSocketSession>> sessionsByTeam = new ConcurrentHashMap<>();
+    private TeamEventRelay eventRelay;
+
+    // Optional injection preserves the local-only mode and the four-argument constructor.
+    @Autowired(required = false)
+    void setEventRelay(TeamEventRelay relay) {
+        relay.subscribe(this::broadcastLocal);
+        this.eventRelay = relay;
+    }
 
     public int activeConnections() {
         return sessionsByTeam.values().stream().mapToInt(Set::size).sum();
@@ -109,6 +122,33 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void broadcast(Long teamId, TeamEventResponse event) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    broadcastCommitted(teamId, event);
+                }
+            });
+        } else {
+            broadcastCommitted(teamId, event);
+        }
+    }
+
+    private void broadcastCommitted(Long teamId, TeamEventResponse event) {
+        broadcastLocal(teamId, event);
+        if (eventRelay != null) {
+            try {
+                // The relay excludes its own instance on consumption, preventing a local echo.
+                eventRelay.publish(teamId, event);
+            } catch (RuntimeException exception) {
+                // Live notifications are best effort; a broker failure must not fail a committed write.
+                log.warn("Team live notification relay unavailable; clients can refresh committed state");
+            }
+        }
+    }
+
+    private void broadcastLocal(Long teamId, TeamEventResponse event) {
         Set<WebSocketSession> teamSessions = sessionsByTeam.get(teamId);
         if (teamSessions == null || teamSessions.isEmpty()) {
             return;

@@ -2,16 +2,10 @@ package com.generatecloud.app.pipeline;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,24 +18,26 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ConditionalOnProperty(name="app.pipeline.enabled",havingValue="true")
 public class OutboxDispatcher {
     private final JdbcTemplate jdbc;
-    private final RabbitTemplate rabbit;
+    private final MessagePublisher publisher;
     private final MeterRegistry metrics;
-    private final PipelineStorage storage;
+    private final com.generatecloud.app.storage.ObjectStorageService storage;
     private final PlatformTransactionManager transactions;
 
-    @Bean
-    public Declarables mediaQueues() {
-        return new Declarables(new Queue("media.process",true),new Queue("media.embed",true),
-                new Queue("media.delete",true),new Queue("media.dlq",true));
-    }
     @PostConstruct
     void gauges() {
         metrics.gauge("media_queue_depth",this,self -> self.count("status IN ('QUEUED','RETRY')"));
         metrics.gauge("worker_active_jobs",this,self -> self.count("status='RUNNING' AND lease_until>now()"));
         metrics.gauge("media_dead_letter_jobs",this,self -> self.count("status='DLQ'"));
+        metrics.gauge("media_outbox_pending",this,self -> self.scalar("SELECT count(*) FROM media_outbox WHERE last_published_at IS NULL"));
+        metrics.gauge("media_oldest_queued_job_age_seconds",this,self -> self.scalar("SELECT coalesce(extract(epoch FROM now()-min(created_at)),0) FROM media_processing_jobs WHERE status IN ('QUEUED','RETRY') AND next_attempt_at<=now()"));
     }
     private double count(String predicate) {
         try { return jdbc.queryForObject("SELECT count(*) FROM media_processing_jobs WHERE "+predicate,Long.class); }
+        catch(Exception exception) { return Double.NaN; }
+    }
+
+    private double scalar(String sql) {
+        try { return jdbc.queryForObject(sql,Double.class); }
         catch(Exception exception) { return Double.NaN; }
     }
 
@@ -61,14 +57,9 @@ public class OutboxDispatcher {
                 case "EMBED" -> "media.embed"; case "DELETE" -> "media.delete"; default -> "media.process";
             };
             try {
-                var properties=new MessageProperties();
-                properties.setContentType("application/json"); properties.setMessageId(id);
-                properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
-                var correlation=new CorrelationData(UUID.randomUUID().toString());
                 String traceparent=row.get("traceparent")==null?"":row.get("traceparent").toString();
-                rabbit.send("",queue,new Message(("{\"jobId\":\""+id+"\",\"traceparent\":\""+traceparent+"\"}").getBytes(StandardCharsets.UTF_8),properties),correlation);
-                var confirm=correlation.getFuture().get(3,TimeUnit.SECONDS);
-                if(!confirm.isAck() || correlation.getReturned()!=null) throw new IllegalStateException("Message was not routed and confirmed");
+                publisher.publish(queue,UUID.fromString(id),traceparent);
+                metrics.counter("media_publish_confirmed").increment();
                 // A fast worker can fail before the publisher receives its confirmation. Do
                 // not erase that worker's retry/DLQ publication request with a stale timestamp.
                 jdbc.update("""
