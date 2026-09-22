@@ -40,10 +40,49 @@ class DeploymentSafetyTests(unittest.TestCase):
                 deploy.task_baseline("other:9", "family:12")
 
     def test_optional_embedding_worker_reuses_ml_image(self):
-        with patch.dict(deploy.os.environ, {"ENABLE_ENCODER": "true", "ECR_COLLECTOR_REPOSITORY": "collector"}, clear=True):
+        with patch.dict(deploy.os.environ, {"ENABLE_ENCODER": "true", "ENABLE_COLLECTOR": "true", "ECR_COLLECTOR_REPOSITORY": "collector"}, clear=True):
             self.assertIn(("embedding-worker", "encoder"), deploy.deployed_components())
             self.assertIn(("collector", "collector"), deploy.deployed_components())
             self.assertEqual(deploy.service_env("embedding-worker"), "ECS_EMBEDDING_WORKER_SERVICE")
+
+    def deployment_environment(self):
+        registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        return {
+            "DEPLOY_SHA": "a" * 40, "EXPECTED_AWS_ACCOUNT_ID": "123456789012",
+            "AWS_REGION": "us-east-1", "AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/deploy",
+            "ECR_API_REPOSITORY": registry + "/api", "ECR_WORKER_REPOSITORY": registry + "/worker",
+            "ECS_CLUSTER": "cluster", "ECS_API_SERVICE": "api", "ECS_WORKER_SERVICE": "worker",
+            "FRONTEND_BUCKET": "frontend", "FRONTEND_DISTRIBUTION_ID": "distribution",
+            "FRONTEND_URL": "https://app.example.test", "VITE_API_BASE_URL": "https://api.example.test",
+            "TASK_DEFINITION_PARAMETERS": '{"api":"/tasks/api","worker":"/tasks/worker"}',
+        }
+
+    def test_disabled_collector_ignores_retained_ecr_repository(self):
+        for flag in ("false", ""):
+            env = self.deployment_environment() | {
+                "ENABLE_COLLECTOR": flag,
+                "ECR_COLLECTOR_REPOSITORY": "123456789012.dkr.ecr.us-east-1.amazonaws.com/collector",
+            }
+            with self.subTest(flag=flag), patch.dict(deploy.os.environ, env, clear=True):
+                deploy.preflight()
+                self.assertEqual(deploy.enabled_components(), ["api", "worker"])
+                self.assertEqual(deploy.deployed_components(), [("api", "api"), ("worker", "worker")])
+                self.assertEqual(deploy.baseline_parameters(), {"api": "/tasks/api", "worker": "/tasks/worker"})
+
+    def test_enabled_collector_requires_repository_service_and_baseline(self):
+        env = self.deployment_environment() | {"ENABLE_COLLECTOR": "true"}
+        with patch.dict(deploy.os.environ, env, clear=True):
+            with self.assertRaisesRegex(ValueError, "ECR_COLLECTOR_REPOSITORY"):
+                deploy.preflight()
+            deploy.os.environ["ECR_COLLECTOR_REPOSITORY"] = "123456789012.dkr.ecr.us-east-1.amazonaws.com/collector"
+            with self.assertRaisesRegex(ValueError, "ECS_COLLECTOR_SERVICE"):
+                deploy.preflight()
+            deploy.os.environ["ECS_COLLECTOR_SERVICE"] = "collector"
+            with self.assertRaisesRegex(ValueError, "task definition parameter for collector"):
+                deploy.preflight()
+            deploy.os.environ["TASK_DEFINITION_PARAMETERS"] = '{"api":"/tasks/api","worker":"/tasks/worker","collector":"/tasks/collector"}'
+            deploy.preflight()
+            self.assertIn(("collector", "collector"), deploy.deployed_components())
 
     def test_healthy_requested_revision_passes(self):
         deploy.verify_rollout({

@@ -39,7 +39,7 @@ def enabled_components() -> list[str]:
     names = ["api", "worker"]
     if os.environ.get("ENABLE_ENCODER", "").lower() == "true":
         names.append("encoder")
-    if os.environ.get("ECR_COLLECTOR_REPOSITORY", ""):
+    if os.environ.get("ENABLE_COLLECTOR", "").lower() == "true":
         names.append("collector")
     return names
 

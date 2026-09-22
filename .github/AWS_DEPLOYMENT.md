@@ -35,20 +35,23 @@ Read the run and its `aws-deployment-<SHA>` artifact before setting initial Terr
 | `TASK_DEFINITION_PARAMETERS` | JSON map from Terraform `task_definition_parameter_names`; points to reviewed task definition ARNs in SSM |
 | `ECS_API_SERVICE` | Terraform `api_service_name` |
 | `ECS_WORKER_SERVICE` | Terraform `worker_service_name` |
-| `ECS_COLLECTOR_SERVICE` | Terraform `collector_service_name` |
+| `ECS_COLLECTOR_SERVICE` | Terraform `collector_service_name`, when collector is enabled |
 | `ECS_ENCODER_SERVICE` | Terraform `encoder_service_name`, when semantic search is enabled |
 | `ECS_EMBEDDING_WORKER_SERVICE` | Terraform `embedding_worker_service_name`, when semantic search is enabled |
 | `ECR_API_REPOSITORY` | Terraform `ecr_repository_urls.api`, no tag |
 | `ECR_WORKER_REPOSITORY` | Terraform `ecr_repository_urls.worker`, no tag |
-| `ECR_COLLECTOR_REPOSITORY` | Terraform `ecr_repository_urls.collector`, no tag |
+| `ECR_COLLECTOR_REPOSITORY` | Terraform `ecr_repository_urls.collector`, when enabled, no tag |
 | `ECR_ENCODER_REPOSITORY` | Terraform `ecr_repository_urls.encoder`, when enabled, no tag |
 | `ENABLE_ENCODER` | `true` only when encoder and embedding-worker services are configured |
+| `ENABLE_COLLECTOR` | Match Terraform `enable_collector`: `true` to build/deploy the collector, `false` when disabled; set during image bootstrap too |
 | `FRONTEND_BUCKET` | Terraform `frontend_bucket_name` |
 | `FRONTEND_DISTRIBUTION_ID` | Terraform `frontend_distribution_id` |
 | `FRONTEND_URL` | Terraform `frontend_url`, an HTTPS origin |
 | `API_BASE_URL` | Terraform `api_base_url`, an HTTPS origin; compiled as `VITE_API_BASE_URL` |
 
 Set `AUTO_DEPLOY_DEV` at **repository** scope because the source-verification job intentionally has no environment or AWS credentials. Everything else belongs to its own environment. GitHub variables are appropriate for resource names/ARNs, not passwords.
+
+Optional service enablement is explicit. Terraform retains all ECR repositories even when a service is disabled, so a populated collector repository variable does not enable collector builds or rollout. Set `ENABLE_COLLECTOR=true` for the default backlog-scaling configuration; CPU or disabled scaling can use `ENABLE_COLLECTOR=false` without collector service or baseline variables.
 
 The deploy role needs ECR push/pull and `DescribeImages` on the designated repositories, ECS describe/register/update and `TagResource`, `iam:PassRole` only for the application's execution/task roles, frontend bucket list/write access, CloudFront create/get invalidation, and `ssm:GetParameters` on its Terraform baseline parameters. Terraform provides the resource-scoped role. `RegisterTaskDefinition` and ECR token issuance require the AWS-supported wildcard resource scope; neither grants application data access.
 
