@@ -12,7 +12,8 @@ services:
       interval: 5s
       retries: 20
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    # Equivalent to PR #3: a maintained MinIO-compatible image with immutable digest.
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -105,9 +106,12 @@ services:
       ENCODER_TOKEN: ${ENCODER_TOKEN:-local-encoder-token}
       CLIP_MODEL_VERSION: ${CLIP_MODEL_VERSION:-clip-vit-b32-openai-v1}
       TORCH_THREADS: "2"
+      XDG_CACHE_HOME: /home/worker/.cache
+      HF_HOME: /home/worker/.cache/huggingface
+      TORCH_HOME: /home/worker/.cache/torch
     volumes: ["model-cache:/home/worker/.cache"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/readyz',timeout=5)"]
       interval: 10s
       start_period: 120s
       retries: 60
@@ -119,14 +123,17 @@ services:
       <<: *worker-env
       WORKER_QUEUES: media.embed
       TORCH_THREADS: "2"
+      XDG_CACHE_HOME: /home/worker/.cache
+      HF_HOME: /home/worker/.cache/huggingface
+      TORCH_HOME: /home/worker/.cache/torch
     volumes: ["model-cache:/home/worker/.cache"]
   frontend:
     build: ./frontend
     depends_on:
       backend: { condition: service_healthy }
-    ports: ["127.0.0.1:${FRONTEND_PORT:-5173}:80"]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-5173}:8080"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:80/ >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/ >/dev/null 2>&1"]
       interval: 10s
       retries: 10
 volumes:

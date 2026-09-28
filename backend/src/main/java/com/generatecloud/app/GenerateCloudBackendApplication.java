@@ -11,6 +11,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class GenerateCloudBackendApplication {
 
 	public static void main(String[] args) {
+		if (java.util.Arrays.asList(args).contains("--migrate-only")) {
+			MigrationApplication.main(args);
+			return;
+		}
 		SpringApplication.run(GenerateCloudBackendApplication.class, args);
 	}
 

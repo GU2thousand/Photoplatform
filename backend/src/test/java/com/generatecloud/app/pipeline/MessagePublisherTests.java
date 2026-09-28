@@ -49,14 +49,15 @@ class MessagePublisherTests {
         var publisher = mock(MessagePublisher.class);
         var metrics = new SimpleMeterRegistry();
         UUID id = UUID.randomUUID();
-        when(jdbc.queryForList(anyString())).thenReturn(List.of(Map.of("id", id, "job_type", "MEDIA_PROCESS", "status", "QUEUED", "attempt", 0)));
+        var row=List.<Map<String,Object>>of(Map.of("id", id, "job_type", "MEDIA_PROCESS", "status", "QUEUED", "attempt", 0));
+        when(jdbc.queryForList(anyString(),any(UUID.class))).thenReturn(row,row,List.of());
         doThrow(new IllegalStateException("broker unavailable")).doNothing().when(publisher).publish("media.process", id, "");
         var dispatcher = new OutboxDispatcher(jdbc, publisher, metrics, mock(ObjectStorageService.class), mock(PlatformTransactionManager.class));
         dispatcher.dispatch();
-        verify(jdbc, never()).update(anyString(), any(), any(), any());
+        verify(jdbc, never()).update(contains("j.status=? AND j.attempt=?"), any(), any(), any(), any());
         assertThat(metrics.get("media_publish_failures").counter().count()).isEqualTo(1);
         dispatcher.dispatch();
-        verify(jdbc).update(contains("j.status=? AND j.attempt=?"), eq(id), eq("QUEUED"), eq(0));
+        verify(jdbc).update(contains("j.status=? AND j.attempt=?"), eq(id), eq("QUEUED"), eq(0),any(UUID.class));
         assertThat(metrics.get("media_publish_confirmed").counter().count()).isEqualTo(1);
     }
 }

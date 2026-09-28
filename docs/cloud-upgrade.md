@@ -91,7 +91,7 @@ For an existing Render database, do not attempt to change its immutable major-ve
 
 The default Blueprint leaves semantic search disabled and avoids provisioning extra ML compute. To enable it:
 
-1. Build an internal/private service from `worker/Dockerfile.ml`, Docker context `worker`, with command `uvicorn app.encoder:app --host 0.0.0.0 --port 8090`. Set a strong `ENCODER_TOKEN`, the shared `CLIP_MODEL_VERSION`, and `TORCH_THREADS`; allow sufficient memory for Torch and the model. Its `/health` becomes available after model initialization.
+1. Build an internal/private service from `worker/Dockerfile.ml`, Docker context `worker`, with command `uvicorn app.encoder:app --host 0.0.0.0 --port 8090`. Set a strong `ENCODER_TOKEN`, the shared `CLIP_MODEL_VERSION`, and `TORCH_THREADS`; allow sufficient memory for Torch and the model. Use `/readyz` (503 until loading/version validation/warmup succeeds); `/livez` checks only process health and legacy `/health` remains diagnostic.
 2. Build a separate background worker from the same ML Dockerfile, using the default `python -m app.consumer` command, the media worker's database/storage/broker settings, and `WORKER_QUEUES=media.embed`. It loads the image encoder locally; it does not call the text service.
 3. Set `ENCODER_URL` to the encoder's private HTTP address, and set the matching `ENCODER_TOKEN` on the API. Enable `SEMANTIC_SEARCH_ENABLED=true` on the API and media workers. Match `CLIP_MODEL_VERSION` across all producers/consumers.
 4. Persist or prewarm the model cache, verify health and a real text/image embedding pair, then upload a new image and wait for both `processingStatus=READY` and `embeddingStatus=READY`. Restarting with a different version does not migrate prior embeddings automatically.

@@ -68,6 +68,15 @@ class SocketSecurityTests {
         SecurityContextHolder.clearContext();
     }
 
+    @Test void shutdownClosesEstablishedSocketsWithRestartCode() throws Exception {
+        WebSocketSession session=validSession();
+        handler.afterConnectionEstablished(session);
+        assertThat(handler.activeConnections()).isEqualTo(1);
+        handler.closeForRestart();
+        verify(session).close(new CloseStatus(1012, "API restarting; obtain a fresh socket ticket"));
+        assertThat(handler.activeConnections()).isZero();
+    }
+
     @Test
     void ticketsAreShortLivedAndSeparatedFromAccessTokens() {
         Instant before = Instant.now();
