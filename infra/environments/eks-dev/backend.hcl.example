@@ -1,0 +1,6 @@
+# Copy outside Git; the backend must already exist and versioning/locking must be enabled.
+bucket       = "YOUR_EXISTING_STATE_BUCKET"
+key          = "photoplatform/eks-dev/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

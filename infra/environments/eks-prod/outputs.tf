@@ -1,0 +1,16 @@
+output "cluster_name" { value = module.eks.cluster_name }
+output "cluster_arn" { value = module.eks.cluster_arn }
+output "cluster_endpoint" { value = module.eks.cluster_endpoint }
+output "cluster_version" { value = module.eks.cluster_version }
+output "namespace" { value = module.eks.namespace }
+output "vpc_id" { value = module.eks.vpc_id }
+output "public_subnet_ids" { value = module.eks.public_subnet_ids }
+output "node_security_group_id" { value = module.eks.node_security_group_id }
+output "alb_security_group_id" { value = module.eks.alb_security_group_id }
+output "github_deploy_role_arn" { value = module.eks.github_deploy_role_arn }
+output "workload_role_arns" { value = module.eks.workload_role_arns }
+output "system_role_arns" { value = module.eks.system_role_arns }
+output "service_accounts" { value = module.eks.service_accounts }
+output "node_group_names" { value = module.eks.node_group_names }
+output "addon_versions" { value = module.eks.addon_versions }
+output "node_ami_release_version" { value = module.eks.node_ami_release_version }

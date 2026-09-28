@@ -1,0 +1,42 @@
+# Secrets and workload IAM
+
+Use EKS Pod Identity on the managed Linux EC2 node groups. Every workload has its own ServiceAccount and IAM role, linked by Terraform to the exact cluster, namespace and account. Trust conditions constrain `aws:RequestTag/eks-cluster-arn`, `kubernetes-namespace` and `kubernetes-service-account`. Changing the Helm release name would change its ServiceAccounts, so the AWS release name is fixed to `photoplatform`.
+
+| ServiceAccount | Allowed cloud capability | Secret content |
+| --- | --- | --- |
+| `photoplatform-api` | Exact environment S3 staging/media prefixes, legacy originals/thumbnails under the same prefix, restricted Secret allowlist | API DB DML credentials, AMQPS runtime credentials, JWT signing key; CDN signing private key when enabled; encoder token only when ML enabled |
+| `photoplatform-media-worker` | Exact staging/media prefixes, including versioned-object cleanup; restricted Secret allowlist | DB DML/claim credentials and AMQPS media runtime credentials |
+| `photoplatform-embedding-worker` | Read-only exact staging/media object prefix; restricted Secret allowlist | DB embedding DML and AMQPS embedding runtime credentials |
+| `photoplatform-encoder` | Its token-only Secret; no S3 grant | Encoder token alone; never JWT/CDN private key |
+| `photoplatform-migrator` | Its separate migrator Secret; no S3 grant | Dedicated database DDL credentials; never RDS master Secret |
+| `photoplatform-queue-collector` | Broker monitoring Secret; no media S3 grant | RabbitMQ monitoring-only credentials |
+| `kube-system/aws-node` | AWS-managed IPv4 CNI policy | None |
+| `kube-system/aws-load-balancer-controller` | Pinned upstream controller IAM policy, tag-scoped lifecycle permissions | None |
+
+Node IAM has bootstrap/ECR pull/Pod Identity Agent support and no runtime Secret or S3 grants. IMDS requires v2 and hop limit 1. The default credentials chain must remain enabled: static access keys or earlier credential providers take precedence over Pod Identity. Remove `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` and IRSA annotations from production manifests. [AWS SDK minimums](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-minimum-sdk.html) are Java v2 2.21.30 and Python boto3/botocore 1.34.41; verify the final image dependency versions and actual STS identity, not just the manifest. The [AWS trust-policy contract](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-role.html) describes session-tag restrictions.
+
+This implementation selects Secrets Store CSI Driver with the AWS provider, file mounts only. The pinned platform bootstrap disables `secretObjects` synchronization and automatic rotation. Application `SecretProviderClass` sets `usePodIdentity="true"`, the region, the exact full Secrets Manager ARN and an explicit `versionId`. JMESPath aliases mount only allowlisted keys at `/mnt/secrets/<KEY>` with mode 0440. API startup and Python startup resolve `<KEY>_FILE` explicitly and reject missing/empty/conflicting values before starting the server/consumer. Read-only files are not automatically environment variables and are not hot-reloaded.
+
+The current chart consumes one distinct JSON Secret per workload. Match its selected ARN exactly in Terraform `workload_secret_arns.<workload>`; the IAM list can contain several exact ARNs for future extensions, but that does not make the current chart read several Secret objects. Provision/update contents through the platform's approved secret system, outside Terraform and Helm. JSON keys are:
+
+| Workload | JSON keys |
+| --- | --- |
+| API | `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `APP_JWT_SECRET`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`; add `CDN_PRIVATE_KEY_PEM` for CloudFront, `ENCODER_TOKEN` for ML |
+| Media/embedding worker | `DATABASE_USER`, `DATABASE_PASSWORD`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD` |
+| Encoder | `ENCODER_TOKEN` |
+| Migrator | `MIGRATOR_DATABASE_USERNAME`, `MIGRATOR_DATABASE_PASSWORD` |
+| Queue collector | `RABBITMQ_USER`, `RABBITMQ_PASSWORD` |
+
+A role reading one Secret ARN can read its complete JSON payload through the SDK, regardless of the mounted JMESPath keys. Therefore do not share a multi-purpose API Secret with workers, encoder or collector. Distinct ARNs, not field-level aliases, enforce the permission boundary. Keep DB/MQ credential versions synchronized through an explicit rollout when the same restricted service user is stored in more than one workload Secret. No password, signing key or application token goes in Git, tfvars, Terraform output, Helm values, logs or acceptance artifacts. Source Secret ARN/version IDs and the chart configuration hash are enough for provenance.
+
+Provide `forbidden_secret_arns` containing all RDS master/MQ bootstrap/admin Secrets. Terraform refuses overlap with any workload allowlist and adds an explicit deny to populated runtime Secret policies. It also rejects any overlap between the migrator Secret set and another workload. The one-time pgvector extension/bootstrap requires a separate platform identity. Give the migrator schema DDL and Flyway-history privileges needed for the actual migrations; give API/workers only business DML and sequence privileges. The application publisher cannot read these cloud Secrets through IAM.
+
+For customer-managed Secret encryption, `secret_kms_key_arns` grants only the workload's listed keys with `kms:ViaService=secretsmanager.<region>.amazonaws.com` and the exact permitted Secret encryption context. If media uses SSE-KMS, the optional existing `media_kms_key_arn` permits only required decrypt/data-key operations via S3 and the media bucket/prefix context. Key policies must separately permit the roles; IAM statements alone cannot overcome a denying key policy. S3 bucket-key encryption context can be the bucket ARN, which is why that explicit ARN is permitted alongside object-prefix contexts. Do not grant encoder/migrator a media key.
+
+The application deployment role is GitHub OIDC restricted to `repo:GU2thousand/Photoplatform:environment:eks-dev` or `eks-prod` and the selected existing OIDC provider/account. Its cloud grants cover this cluster description/add-on preflight, the explicit immutable ECR repositories, frontend publishing/invalidation and read-only media bucket controls for business smoke. It has no media object grant, infrastructure apply/destroy, IAM mutation, database admin Secret access or cluster-admin policy. Bootstrap maps its `photoplatform-deployers` group to a namespace Role and a narrow read-only namespace-identity permission: `get` only the target namespace and `kube-system`, for label/UID verification. It cannot list other namespaces or mutate cluster resources/RBAC. Helm release metadata uses Kubernetes Secrets, so publishers can read namespace Secret metadata and must be protected identities even though cloud credentials remain files. Runtime ServiceAccounts do not use this publishing group.
+
+Rotation is explicit: create a new Secret version, verify its shape and scoped access, update the version IDs, run a successful finite migration if needed, roll out workers/API together as the credential contract requires and check new Pod image/Secret-version evidence. Rollback selects an earlier allowed Secret version only if the underlying DB/MQ credentials remain valid. Missing Secret/expired permissions leave Pods unready and halt release; do not repair this by granting admin or bypassing TLS. CSI rotation is disabled, so changing AWSCURRENT alone does not update pinned running Pods.
+
+JWT currently validates a single signing key. A changed key invalidates existing access tokens/socket tickets; schedule that change as an explicit session-expiry event. Uninterrupted mixed-key rotation needs a separately implemented key-id and overlap-verification contract. Keep the encoder token version consistent across API and encoder. A rolling restart alone is not evidence of seamless signing-key rotation.
+
+Live dev acceptance must collect, without exposing credentials: actual STS assumed-role ARN from each ServiceAccount, successful file mount/version evidence, allowed prefix access, denied unrelated-prefix access, denied admin Secret access, encoder/migrator denied S3 mutation, and external denial of DB/MQ/metrics/encoder. CloudTrail and failed calls should identify the intended workload roles. Bootstrap namespace roles, ARN strings or ServiceAccount annotations alone do not prove any of these outcomes.

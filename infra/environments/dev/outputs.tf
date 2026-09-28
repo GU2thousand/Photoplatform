@@ -30,3 +30,12 @@ output "security_group_ids" { value = module.platform.security_group_ids }
 output "dashboard_name" { value = module.platform.dashboard_name }
 
 output "task_definition_parameter_names" { value = module.platform.task_definition_parameter_names }
+
+# Read-only shared resource references for the independent EKS compute state.
+output "vpc_id" { value = module.platform.vpc_id }
+output "public_subnet_ids" { value = module.platform.public_subnet_ids }
+output "ecr_repository_arns" { value = module.platform.ecr_repository_arns }
+output "github_oidc_provider_arn" { value = module.platform.github_oidc_provider_arn }
+output "frontend_bucket_arn" { value = module.platform.frontend_bucket_arn }
+output "frontend_distribution_arn" { value = module.platform.frontend_distribution_arn }
+output "media_bucket_arn" { value = module.platform.media_bucket_arn }
