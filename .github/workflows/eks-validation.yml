@@ -208,7 +208,7 @@ jobs:
         if: inputs.suite == 'single-pod-recovery'
         run: |
           python3 scripts/eks_failure.py --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --output benchmarks/results/eks-worker-recovery.json
-      - name: Kill one verified worker process and prove durable retry
+      - name: Check the outside-namespace EKS abrupt-fault helper prerequisite
         if: inputs.suite == 'abrupt-worker-recovery'
         run: |
           python3 scripts/eks_failure.py --fault-mode sigkill --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --minimum-job-age-seconds 310 --output benchmarks/results/eks-worker-sigkill.json
