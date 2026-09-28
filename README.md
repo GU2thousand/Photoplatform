@@ -10,7 +10,9 @@ A Vue 3 / Spring Boot media platform with private object storage, durable Rabbit
 
 The AWS upgrade adds modular Terraform, private S3/CloudFront, RDS, Amazon MQ, independent ECS Fargate services, backlog-based scaling, and GitHub OIDC deployment. See [AWS architecture and phase gates](docs/aws-production.md), [infrastructure](infra/README.md), [CI/CD setup](.github/AWS_DEPLOYMENT.md), [failure testing](docs/failure-testing.md), and [cloud benchmarks](docs/cloud-benchmarks.md).
 
-**Verification:** [AWS upgrade checks and remaining gates](docs/aws-validation.md) are separate from the [earlier local measurements](docs/validation.md). Configuration and CI success do not establish a deployed or benchmarked AWS system.
+An independent **AWS EKS compute route** now includes private managed nodes, Pod Identity, a digest-only Helm chart, finite migration Jobs, renewable worker claims, publication claims, internal telemetry, protected release and Kubernetes acceptance harnesses. Start with [EKS prerequisites](docs/kubernetes/prerequisites.md), [architecture](docs/kubernetes/architecture.md), [runtime contracts](docs/kubernetes/runtime-contracts.md), [deployment](docs/kubernetes/deployment.md) and [acceptance](docs/kubernetes/acceptance.md). The EKS roots reference shared data services and ECR without moving their Terraform ownership. GitHub-hosted kind/browser runs validate disposable runtime behavior; AWS IAM, ALB, managed dependencies and production cutover require separate recorded AWS acceptance.
+
+**Verification:** [Kubernetes implementation evidence boundaries](docs/kubernetes/implementation-validation.md) and [AWS upgrade checks and remaining gates](docs/aws-validation.md) are separate from the [earlier local measurements](docs/validation.md). Configuration and CI success do not establish a deployed or benchmarked AWS system.
 
 ## Architecture
 
@@ -52,7 +54,7 @@ docker compose up -d --scale worker=4
 
 Open [localhost:5173](http://localhost:5173); the API is at [localhost:8081](http://localhost:8081). Host ports bind to loopback. The default demo seeds `avery@generatecloud.local / creator123` and `admin@generatecloud.local / admin123`; seeding is disabled by the application and production Blueprint defaults. Keep this demo stack local. `docker compose stop` preserves volumes; `docker compose down -v` deletes them.
 
-PostgreSQL 16 includes pgvector even when ML services are disabled. Existing local RabbitMQ 4.1 volumes keep their default image; `RABBITMQ_IMAGE` can select a fresh test broker, and CI uses RabbitMQ 4.3. Do not jump an existing broker data volume across unsupported upgrade paths. MinIO uses a pinned Quay release; RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
+PostgreSQL 16 includes pgvector even when ML services are disabled. Existing local RabbitMQ 4.1 volumes keep their default image; `RABBITMQ_IMAGE` can select a fresh test broker, and CI uses RabbitMQ 4.3. Do not jump an existing broker data volume across unsupported upgrade paths. Object storage uses a release-and-digest-pinned SILO MinIO-compatible image (equivalent to PR #3); RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
 
 ```bash
 SEMANTIC_SEARCH_ENABLED=true docker compose --profile search up -d --build
@@ -153,6 +155,8 @@ No cloud resources are provisioned by a local build. S3-compatible providers mus
 基于 Vue 3、Spring Boot、PostgreSQL 的图片平台，新增 RabbitMQ 持久化任务、可独立扩容的 Python worker，以及可选的 CLIP / pgvector 检索。保留公共图库、个人空间、团队权限、审核和 WebSocket 协作。
 
 本轮新增模块化 Terraform、私有 S3 / CloudFront、RDS、Amazon MQ、独立 ECS Fargate 服务、积压指标扩缩容及 GitHub OIDC 部署。参见 [AWS 架构与阶段验收](docs/aws-production.md)、[基础设施](infra/README.md)、[CI/CD](.github/AWS_DEPLOYMENT.md)、[故障测试](docs/failure-testing.md)、[云性能评测](docs/cloud-benchmarks.md)。
+
+新增独立的 **AWS EKS 计算部署路径**：私有 managed node groups、Pod Identity、仅接受镜像 digest 的 Helm chart、有限时退出的迁移 Job、可续租 worker claim、outbox 发布 claim、内部监控、受保护发布流程及 Kubernetes 验收工具。先阅读 [前置条件](docs/kubernetes/prerequisites.md)、[架构](docs/kubernetes/architecture.md)、[运行契约](docs/kubernetes/runtime-contracts.md)、[发布](docs/kubernetes/deployment.md)和[验收](docs/kubernetes/acceptance.md)。既有数据库、MQ、S3 和 ECR 保留原 Terraform state 归属。GitHub 托管 kind / 浏览器运行验证临时环境行为；真实 EKS IAM、ALB、托管数据服务与生产入口需单独保存 AWS 验收证据，不能由配置或 CI 成功推定已上线。
 
 [本轮验证和待完成事项](docs/aws-validation.md)与[之前的本地测量](docs/validation.md)单独记录。代码、配置和 CI 通过，不代表 AWS 已部署或云性能已经测量。
 

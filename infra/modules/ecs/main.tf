@@ -144,7 +144,7 @@ resource "aws_ecs_task_definition" "workloads" {
     command     = each.key == "encoder" ? ["uvicorn", "app.encoder:app", "--host", "0.0.0.0", "--port", "8090"] : null
     stopTimeout = 120
     healthCheck = each.key == "encoder" ? {
-      command  = ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health',timeout=5)"]
+      command  = ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/readyz',timeout=5)"]
       interval = 30, timeout = 10, retries = 3, startPeriod = 300
       } : contains(["worker", "embedding-worker"], each.key) ? {
       command  = ["CMD", "python", "-m", "app.health"]

@@ -1,0 +1,204 @@
+{{- if .Values.network.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-default-deny
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-dns-and-aws
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    # AWS HTTPS services use hostname/TLS verification and workload IAM. Restrict
+    # this further with reviewed VPC endpoints/security groups where available.
+    - to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+      ports: [{protocol: TCP, port: 443}]
+    {{- if eq .Values.runtimeMode "aws" }}
+    # EKS Pod Identity Agent link-local credential endpoint is distinct from IMDS.
+    - to: [{ipBlock: {cidr: 169.254.170.23/32}}]
+      ports: [{protocol: TCP, port: 80}]
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-api-ingress
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .Values.network.ingressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-managed-dependencies
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+    matchExpressions:
+      - {key: app.kubernetes.io/component, operator: In, values: [api, media-worker, embedding-worker, migrator]}
+  policyTypes: [Egress]
+  egress:
+    {{- if .Values.network.databaseCidrs }}
+    - to:
+        {{- range .Values.network.databaseCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.config.databasePort }}}]
+    {{- end }}
+    {{- if .Values.network.brokerCidrs }}
+    - to:
+        {{- range .Values.network.brokerCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.config.rabbitmqPort }}}]
+    {{- end }}
+    {{- if .Values.network.allowLocalDependencies }}
+    - to:
+        - podSelector: {matchLabels: {app.kubernetes.io/part-of: photoplatform}}
+      ports: [{protocol: TCP, port: 5432}, {protocol: TCP, port: 5672}, {protocol: TCP, port: 9000}]
+    {{- end }}
+{{- if .Values.ml.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-encoder
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "encoder") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "photo.selector" (dict "root" . "component" "api") | nindent 14 }}
+      ports: [{protocol: TCP, port: 8090}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-api-encoder
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "photo.selector" (dict "root" . "component" "encoder") | nindent 14 }}
+      ports: [{protocol: TCP, port: 8090}]
+{{- end }}
+{{- if .Values.telemetry.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-metrics
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+    matchExpressions:
+      - {key: app.kubernetes.io/component, operator: In, values: [api, media-worker, embedding-worker, encoder, queue-collector, kube-state-metrics]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "photo.selector" (dict "root" . "component" "prometheus") | nindent 14 }}
+      ports: [{protocol: TCP, port: 9091}, {protocol: TCP, port: 9100}, {protocol: TCP, port: 9092}, {protocol: TCP, port: 8080}, {protocol: TCP, port: 8090}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-telemetry-internal
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+      ports: [{protocol: TCP, port: 4318}, {protocol: TCP, port: 9091}, {protocol: TCP, port: 9100}, {protocol: TCP, port: 9092}, {protocol: TCP, port: 8080}, {protocol: TCP, port: 8090}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-otel-ingress
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "otel") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
+      ports: [{protocol: TCP, port: 4318}]
+{{- end }}
+{{- if .Values.queueCollector.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-collector-kubernetes
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "queue-collector") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range .Values.network.kubernetesApiCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: 443}]
+    {{- if .Values.network.allowLocalDependencies }}
+    - to: [{podSelector: {matchLabels: {app.kubernetes.io/part-of: photoplatform}}}]
+      ports: [{protocol: TCP, port: {{ .Values.queueCollector.managementPort }}}]
+    {{- end }}
+{{- end }}
+{{- end }}

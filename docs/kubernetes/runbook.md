@@ -1,0 +1,19 @@
+# EKS operations runbook
+
+Operate only after confirming AWS account, region, cluster ARN, namespace UID, kube-system UID, release and revision. Use the dedicated private-network runner/kubeconfig context. Preserve the environment concurrency lock and a restoration plan before any fault or scaling experiment.
+
+For a failed migration, stop application and frontend release. Preserve Job UID/status, safe logs and read-only Flyway history using the dedicated migrator identity. Diagnose whether DDL applied before failure. Review a corrective expand-contract migration; do not blindly retry destructive SQL and do not use application credentials for schema administration. The old application must remain schema-compatible. A Job timeout is a failed release even if the old API is Ready.
+
+For a failed Helm rollout, `--atomic` may restore an old release. That restoration must remain a failed new deployment: inspect requested SHA, Pod imageIDs, observed generation, Deployment/Helm revision and API EndpointSlices. Capture events and previous-container logs without dumping Secrets or complete Pod environments. If a previous compatible chart/digest is selected, record a separate rollback operation and run business smoke again before restoring the frontend API origin.
+
+For API unavailable replicas, check Pending/OOM/CrashLoop, requests/limits, topology scheduling, startup budget, ALB target health and Secrets/Pod Identity before changing capacity. Confirm external dependency outages decrease readiness while dependency-independent liveness remains stable. Do not fix a TLS or identity error by allowing plaintext DB/MQ, public database access, static AWS administrator keys or a public metrics endpoint.
+
+For stuck jobs, capture job ID/status/attempt/claim token/lease timeline, outbox oldest age, MQ ready and unacknowledged counts, worker readiness and restart counts. Compare durable job state against tombstones and S3 object lists. Preserve at-least-once delivery semantics and fencing. A missing MQ sample remains stale/missing; do not emit zero or scale based on a fake empty queue. Long-running advisory locks require a stable direct RDS session.
+
+For fixed worker scaling, confirm no active HPA targets the deployment, an empty normal queue, disposable environment tags, available node memory and connection budget. Save original replicas first. Use the Kubernetes harness and restore original replicas even after timeout. Do not edit ECS desired counts to claim Pod scaling. To test automatic scaling, conduct a separate metric-backed experiment with raw controller/queue/connection time series and budget-derived limits.
+
+For single Pod recovery, select the exact current Pod UID and a durable RUNNING job. Persist identity and restore evidence before deletion. Verify the replacement Pod/image, exactly one DONE job and fixture cleanup. Graceful deletion is only graceful deletion; use a separately reviewed isolated abrupt-fault case for SIGKILL/after-S3 claims. Never disable production DB/MQ or modify shared security groups as an incidental test.
+
+JWT and encoder-token rotation require a consistent version across replicas. The current JWT validator accepts one signing key; an abrupt rollout invalidates old access tokens/tickets. Plan a reauthentication window unless a versioned overlapping verification scheme has been implemented and tested. Secret rotation must be followed by the documented reload/restart behavior and actual identity/authorization checks.
+
+For cluster recovery, rebuild only the independently owned compute state after reviewing plan, then restore CSI references, access entries/RBAC, Pod Identity, chart/images and telemetry. RDS, S3, MQ and shared ECR remain owned by their original state. Test restored data and business flows; a rebuilt cluster with Ready Pods does not establish successful data recovery. Never run Terraform destroy as part of an application incident.

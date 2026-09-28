@@ -1,0 +1,38 @@
+# Only for disposable kind/local integration, namespace photoplatform-dev.
+# Existing Secrets must be created by the local harness (never committed).
+environment: dev
+runtimeMode: local
+aws: {accountId: "", region: us-east-1, clusterName: kind-photoplatform}
+nodeSelector: {}
+topology: {enabled: false, whenUnsatisfiable: ScheduleAnyway}
+config:
+  databaseHost: postgres
+  databaseName: generatecloud
+  databaseSslMode: disable
+  rabbitmqHost: rabbitmq
+  rabbitmqPort: 5672
+  rabbitmqTls: false
+  storageBucket: generatecloud-assets
+  storagePrefix: generate-cloud
+  storageEndpoint: http://minio:9000
+  storagePublicEndpoint: http://localhost:9000
+  corsAllowedOrigins: http://localhost:5173
+secrets:
+  provider: kubernetes
+  api:
+    existingSecret: photoplatform-api-local
+    keys: [SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD, APP_JWT_SECRET, RABBITMQ_USER, RABBITMQ_PASSWORD, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY]
+  mediaWorker:
+    existingSecret: photoplatform-worker-local
+    keys: [DATABASE_USER, DATABASE_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY]
+  migrator: {existingSecret: photoplatform-migrator-local}
+ingress: {enabled: false}
+network:
+  enabled: true
+  allowLocalDependencies: true
+  ingressCidrs: [127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+api:
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "2", memory: 1Gi}
+ml: {enabled: false, nodeSelector: {}}

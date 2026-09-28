@@ -1,0 +1,37 @@
+# Replace inventory values after reading docs/kubernetes/prerequisites.md.
+# ARNs/IDs are examples. No secret payload is accepted by this root.
+region              = "us-east-1"
+expected_account_id = "123456789012"
+vpc_id              = "vpc-0123456789abcdef0"
+private_subnet_ids  = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
+public_subnet_ids   = ["subnet-0123456789abcdef2", "subnet-0123456789abcdef3"]
+runner_security_group_ids = ["sg-0123456789abcdef0"]
+dependency_security_group_ids = { rds = "sg-0123456789abcdef1", mq = "sg-0123456789abcdef2" }
+admin_principal_arns = ["arn:aws:iam::123456789012:role/PlatformAdministrator"]
+github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+ecr_repository_arns = [
+  "arn:aws:ecr:us-east-1:123456789012:repository/photoplatform-prod/api",
+  "arn:aws:ecr:us-east-1:123456789012:repository/photoplatform-prod/worker",
+  "arn:aws:ecr:us-east-1:123456789012:repository/photoplatform-prod/encoder",
+  "arn:aws:ecr:us-east-1:123456789012:repository/photoplatform-prod/collector"
+]
+media_bucket_arn = "arn:aws:s3:::YOUR_ENVIRONMENT_MEDIA_BUCKET"
+storage_prefix = "photoplatform-prod"
+frontend_bucket_arn = "arn:aws:s3:::YOUR_ENVIRONMENT_FRONTEND_BUCKET"
+frontend_distribution_arn = "arn:aws:cloudfront::123456789012:distribution/YOUR_FRONTEND_ID"
+forbidden_secret_arns = ["arn:aws:secretsmanager:us-east-1:123456789012:secret:rds-admin-AbCdEf", "arn:aws:secretsmanager:us-east-1:123456789012:secret:mq-admin-AbCdEf"]
+workload_secret_arns = {
+  api = ["arn:aws:secretsmanager:us-east-1:123456789012:secret:prod-api-runtime-AbCdEf"]
+  media_worker = ["arn:aws:secretsmanager:us-east-1:123456789012:secret:prod-media-runtime-AbCdEf"]
+  embedding_worker = [] # Add restricted DB/MQ credentials before enabling ML.
+  encoder = [] # Add a token-only Secret ARN before enabling ML; do not expose the app signing Secret.
+  migrator = ["arn:aws:secretsmanager:us-east-1:123456789012:secret:prod-db-migrator-AbCdEf"]
+  queue_collector = [] # Add a broker monitoring-only Secret ARN before enabling queue metrics.
+}
+# Mandatory regional pins: fill from describe-addon-versions and AL2023 SSM release_version.
+# These placeholders deliberately fail validation instead of selecting a moving latest version.
+addon_versions = { vpc_cni = "SET_REGIONAL_PIN", coredns = "SET_REGIONAL_PIN", kube_proxy = "SET_REGIONAL_PIN", pod_identity_agent = "SET_REGIONAL_PIN" }
+node_ami_release_version = "SET_REGIONAL_PIN"
+
+# First bootstrap only. After platform policy is installed, set strict and apply the add-on update before any app release.
+network_policy_enforcing_mode = "standard"

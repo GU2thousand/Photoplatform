@@ -52,6 +52,14 @@ public class TeamCollaborationWebSocketHandler extends TextWebSocketHandler {
         return sessionsByTeam.values().stream().mapToInt(Set::size).sum();
     }
 
+    @org.springframework.context.event.EventListener(org.springframework.context.event.ContextClosedEvent.class)
+    public void closeForRestart() {
+        // A finite shutdown must not wait indefinitely for an established socket.
+        // Clients obtain a fresh 60-second ticket and refresh committed REST state.
+        sessionsByTeam.values().stream().flatMap(Set::stream).toList().forEach(session ->
+                disconnect(session, new CloseStatus(1012, "API restarting; obtain a fresh socket ticket")));
+    }
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         SessionBinding binding = bindSession(session.getUri());

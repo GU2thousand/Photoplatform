@@ -1,0 +1,42 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-api
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "api") | nindent 4 }}
+  annotations:
+    {{- include "photo.annotations" . | nindent 4 }}
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme }}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
+    alb.ingress.kubernetes.io/healthcheck-path: /readyz
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/load-balancer-attributes: {{ printf "idle_timeout.timeout_seconds=%d" (int .Values.ingress.idleTimeoutSeconds) | quote }}
+    alb.ingress.kubernetes.io/target-group-attributes: {{ printf "deregistration_delay.timeout_seconds=%d" (int .Values.ingress.deregistrationDelaySeconds) | quote }}
+    {{- if .Values.ingress.loadBalancerName }}
+    alb.ingress.kubernetes.io/load-balancer-name: {{ .Values.ingress.loadBalancerName | quote }}
+    {{- end }}
+    {{- if .Values.ingress.securityGroups }}
+    alb.ingress.kubernetes.io/security-groups: {{ join "," .Values.ingress.securityGroups | quote }}
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "false"
+    {{- end }}
+    {{- if .Values.ingress.subnets }}
+    alb.ingress.kubernetes.io/subnets: {{ join "," .Values.ingress.subnets | quote }}
+    {{- end }}
+spec:
+  ingressClassName: alb
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-api
+                port: {name: http}
+{{- end }}

@@ -34,21 +34,27 @@ public class AwsInfrastructureValidation implements BeanFactoryPostProcessor, En
                 || environment.getProperty("spring.flyway.password") != null)
             validateJdbcUrl(flywayUrl == null ? url : flywayUrl, true);
     }
-    private static void validateJdbcUrl(String url, boolean independentConnection) {
+    public static void validateJdbcUrl(String url, boolean independentConnection) {
         if (!url.startsWith("jdbc:postgresql://")) throw new IllegalStateException("AWS requires a PostgreSQL JDBC datasource URL");
         // JDBC URL parameters override connection properties; reject a TLS downgrade there too.
         String query = url.contains("?") ? url.substring(url.indexOf('?') + 1) : "";
         boolean verifiesTls = false;
+        boolean hasRootCert = false;
+        var seen = new java.util.HashSet<String>();
         for (String parameter : query.split("&")) {
             String[] pair = parameter.split("=", 2);
             String key = java.net.URLDecoder.decode(pair[0], java.nio.charset.StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);
             String value = pair.length == 2 ? java.net.URLDecoder.decode(pair[1], java.nio.charset.StandardCharsets.UTF_8) : "";
+            if (java.util.Set.of("sslmode", "sslrootcert", "sslfactory", "sslhostnameverifier", "ssl").contains(key)
+                    && (!pair[0].equals(key) || !seen.add(key)))
+                throw new IllegalStateException("AWS datasource URL requires literal canonical unique TLS parameter names");
             if (key.equals("sslmode") && value.equals("verify-full")) verifiesTls = true;
+            if (key.equals("sslrootcert") && !value.isBlank()) hasRootCert = true;
             if ((key.equals("sslmode") && !value.equals("verify-full")) || key.equals("sslfactory")
                     || key.equals("sslhostnameverifier") || (key.equals("ssl") && !value.equals("true")))
                 throw new IllegalStateException("AWS datasource URL must not override TLS certificate/hostname verification");
         }
-        if (independentConnection && !verifiesTls)
+        if (independentConnection && (!verifiesTls || !hasRootCert))
             throw new IllegalStateException("Dedicated Flyway JDBC URL must include sslmode=verify-full and the RDS sslrootcert path");
     }
     private static void require(Environment environment, String name, String expected) {

@@ -1,0 +1,158 @@
+name: Deploy EKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected EKS environment; production cutover requires a separate approved decision
+        type: choice
+        options: [eks-dev, eks-prod]
+        default: eks-dev
+
+permissions:
+  contents: read
+
+# Acceptance and scaling/failure workflows use the same environment lock.
+concurrency:
+  group: photoplatform-eks-${{ inputs.environment }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verified-source:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      verify_run_id: ${{ steps.source.outputs.verify_run_id }}
+    steps:
+      - name: Require successful Verify for the exact current main SHA
+        id: source
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const repo = context.repo;
+            if (`${repo.owner}/${repo.repo}` !== 'GU2thousand/Photoplatform') throw new Error('Canonical repository required');
+            const main = await github.rest.repos.getBranch({...repo, branch: 'main'});
+            const sha = context.sha;
+            if (!/^[a-f0-9]{40}$/.test(sha) || sha !== main.data.commit.sha) {
+              throw new Error('Only current main can deploy; rerun Verify on main');
+            }
+            const workflow = await github.rest.actions.getWorkflow({...repo, workflow_id: 'ci.yml'});
+            const runs = await github.rest.actions.listWorkflowRuns({
+              ...repo, workflow_id: workflow.data.id, branch: 'main', head_sha: sha,
+              status: 'success', per_page: 100
+            });
+            const verified = runs.data.workflow_runs.find(run => run.workflow_id === workflow.data.id &&
+              run.head_sha === sha && run.head_branch === 'main' &&
+              run.head_repository?.full_name === `${repo.owner}/${repo.repo}` &&
+              ['push', 'workflow_dispatch'].includes(run.event) && run.conclusion === 'success');
+            if (!verified) throw new Error('Successful exact-SHA canonical main Verify required');
+            core.setOutput('sha', sha);
+            core.setOutput('verify_run_id', verified.id);
+
+  release:
+    needs: verified-source
+    # This runner must reach the private EKS API and have aws, kubectl, helm and Docker/buildx.
+    runs-on: ${{ fromJSON(vars.EKS_RUNNER_LABELS || '["self-hosted","linux","eks-deployer"]') }}
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      DEPLOY_SHA: ${{ needs.verified-source.outputs.sha }}
+      VERIFY_RUN_ID: ${{ needs.verified-source.outputs.verify_run_id }}
+      GITHUB_TOKEN: ${{ github.token }}
+      EKS_ENVIRONMENT: ${{ inputs.environment == 'eks-prod' && 'prod' || 'dev' }}
+      EKS_PRODUCTION_CUTOVER_APPROVED: ${{ vars.EKS_PRODUCTION_CUTOVER_APPROVED }}
+      ALLOW_PRODUCTION_SMOKE: ${{ vars.ALLOW_PRODUCTION_SMOKE }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      EKS_CLUSTER_ARN: ${{ vars.EKS_CLUSTER_ARN }}
+      EKS_NAMESPACE: ${{ vars.EKS_NAMESPACE }}
+      EKS_RELEASE: ${{ vars.EKS_RELEASE }}
+      EKS_HELM_VALUES_JSON: ${{ vars.EKS_HELM_VALUES_JSON }}
+      ECR_API_REPOSITORY: ${{ vars.ECR_API_REPOSITORY }}
+      ECR_WORKER_REPOSITORY: ${{ vars.ECR_WORKER_REPOSITORY }}
+      ECR_ENCODER_REPOSITORY: ${{ vars.ECR_ENCODER_REPOSITORY }}
+      ECR_COLLECTOR_REPOSITORY: ${{ vars.ECR_COLLECTOR_REPOSITORY }}
+      ENABLE_ENCODER: ${{ vars.ENABLE_ENCODER }}
+      FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      FRONTEND_DISTRIBUTION_ID: ${{ vars.FRONTEND_DISTRIBUTION_ID }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+      VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+      API_URL: ${{ vars.API_BASE_URL }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      STORAGE_PREFIX: ${{ vars.STORAGE_PREFIX }}
+      CLOUDFRONT_DOMAIN: ${{ vars.CLOUDFRONT_DOMAIN }}
+      CLOUD_FRONTEND_ORIGIN: ${{ vars.FRONTEND_URL }}
+      ALLOW_CLOUD_TEST_WRITES: "1"
+      DISPOSABLE_ENVIRONMENT: ${{ inputs.environment == 'eks-dev' && 'true' || 'false' }}
+      TEST_OWNER_TOKEN: ${{ secrets.TEST_OWNER_TOKEN }}
+      TEST_OTHER_TOKEN: ${{ secrets.TEST_OTHER_TOKEN }}
+      TEST_ADMIN_TOKEN: ${{ secrets.TEST_ADMIN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.verified-source.outputs.sha }}
+          persist-credentials: false
+      - name: Validate configuration before obtaining AWS credentials
+        run: python3 scripts/deploy/eks_deploy.py preflight
+      - name: Require configured private-cluster runner toolchain
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 12), "Python 3.12+ required for safe source archive extraction"'
+          command -v aws
+          command -v kubectl
+          command -v helm
+          command -v docker
+          docker buildx version
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: photoplatform-eks-${{ github.run_id }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build fresh immutable images and prove pushed OCI revision
+        run: python3 scripts/deploy/eks_deploy.py build
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare frontend without publishing it
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Run bounded migration before modifying application workloads
+        run: python3 scripts/deploy/eks_deploy.py migrate
+      - name: Release Helm and prove Pod image IDs, revision and endpoint targets
+        run: python3 scripts/deploy/eks_deploy.py rollout
+      - name: Install real AWS business acceptance dependencies
+        run: |
+          python3 -m venv --clear work/eks-release-env
+          work/eks-release-env/bin/python -m pip install -r benchmarks/requirements-cloud.txt
+          echo "$PWD/work/eks-release-env/bin" >> "$GITHUB_PATH"
+      - name: Verify uploads and private authorization through real AWS services
+        run: python3 scripts/deploy/eks_deploy.py business
+      - name: Publish frontend after migration, rollout and business checks
+        run: python3 scripts/deploy/eks_deploy.py frontend
+      - name: Preserve release and failure evidence without kubeconfig or tokens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eks-release-${{ inputs.environment }}-${{ needs.verified-source.outputs.sha }}-${{ github.run_id }}
+          path: deployment-results/*.json
+          if-no-files-found: warn
+          retention-days: 30

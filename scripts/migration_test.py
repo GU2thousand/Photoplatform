@@ -142,6 +142,21 @@ def main():
                         "SPRING_DATASOURCE_PASSWORD": config.get("password", ""),
                         "JPA_DDL_AUTO": "validate", "OTEL_SDK_DISABLED": "true"})
             base = f"http://127.0.0.1:{api_port}"
+            # Standalone migration is finite, repeatable, and cannot start server/seed/MQ.
+            env.update({"MIGRATOR_DATABASE_URL":env["SPRING_DATASOURCE_URL"],
+                        "MIGRATOR_DATABASE_USERNAME":env["SPRING_DATASOURCE_USERNAME"],
+                        "MIGRATOR_DATABASE_PASSWORD":env["SPRING_DATASOURCE_PASSWORD"]})
+            for iteration in range(2):
+                migration = subprocess.run([args.java,"-jar",str(jar),"--migrate-only"],env=env,cwd=root,
+                                           stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=90)
+                require(migration.returncode == 0, "Standalone migration failed: "+migration.stdout[-4000:])
+                require("Migration completed and validated" in migration.stdout and "Tomcat" not in migration.stdout,
+                        "Migration started application services")
+            bad_env=dict(env,MIGRATOR_DATABASE_PASSWORD="invalid-password-for-negative-check")
+            failure=subprocess.run([args.java,"-jar",str(jar),"--migrate-only"],env=bad_env,cwd=root,
+                                   stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
+            require(failure.returncode != 0,"Invalid migrator credentials did not cause non-zero exit")
+            env["SPRING_FLYWAY_ENABLED"]="false"
             with log_path.open("w") as log:
                 process = subprocess.Popen([args.java, "-jar", str(jar), "--server.address=127.0.0.1"],
                                            cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -163,8 +178,8 @@ def main():
                             "Migration unexpectedly enabled demo seeding")
                     history = conn.execute("SELECT version,success FROM flyway_schema_history ORDER BY installed_rank").fetchall()
                     require(all(success for _, success in history), "A Flyway migration failed")
-                    require({"0", "1", "2", "3", "4"}.issubset({version for version, _ in history}),
-                            "Expected baseline version 0 and all four migration versions")
+                    require({"0", "1", "2", "3", "4", "5"}.issubset({version for version, _ in history}),
+                            "Expected baseline version 0 and pipeline/outbox migration versions")
                     statuses = conn.execute("SELECT storage_layout,processing_status,asset_version,deleted_at FROM image_assets").fetchall()
                     require(all(row == ("LEGACY", "READY", 1, None) for row in statuses), "Legacy defaults are incorrect")
                     paths = conn.execute("""SELECT is_nullable FROM information_schema.columns WHERE table_name='image_assets'

@@ -1,0 +1,60 @@
+{
+  "verified_on": "2026-09-28",
+  "kubernetes": "1.36",
+  "iam_policy": {
+    "upstream_version": "v3.5.0",
+    "url": "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v3.5.0/docs/install/iam_policy.json",
+    "sha256": "16f232c9d9f79366fe949c4550ad517a202380058a9e48d45a4e215044a20a6a"
+  },
+  "components": {
+    "aws_load_balancer_controller": {
+      "release": "aws-load-balancer-controller",
+      "chart": "aws-load-balancer-controller",
+      "chart_version": "3.5.0",
+      "app_version": "v3.5.0",
+      "repository": "https://aws.github.io/eks-charts",
+      "archive_url": "https://aws.github.io/eks-charts/aws-load-balancer-controller-3.5.0.tgz",
+      "archive_sha256": "45051f634b33e10baccb3354d0681b7de787c60445e599fa276e0c9aedd4ccd5",
+      "image": "public.ecr.aws/eks/aws-load-balancer-controller:v3.5.0",
+      "source": "https://github.com/kubernetes-sigs/aws-load-balancer-controller/tree/v3.5.0"
+    },
+    "aws_secrets_provider": {
+      "release": "secrets-provider-aws",
+      "chart": "secrets-store-csi-driver-provider-aws",
+      "chart_version": "3.1.2",
+      "app_version": "3.1.2",
+      "repository": "https://aws.github.io/secrets-store-csi-driver-provider-aws",
+      "archive_url": "https://github.com/aws/secrets-store-csi-driver-provider-aws/releases/download/3.1.2/secrets-store-csi-driver-provider-aws-3.1.2.tgz",
+      "archive_sha256": "b3f5929c65d6b7ba2dcb348db396db631574f6346496446ffea37effca91ef99",
+      "image": "public.ecr.aws/aws-secrets-manager/secrets-store-csi-driver-provider-aws:3.1.2",
+      "source": "https://github.com/aws/secrets-store-csi-driver-provider-aws/releases/tag/3.1.2",
+      "bundled_dependency": {
+        "chart": "secrets-store-csi-driver",
+        "chart_version": "1.6.0",
+        "app_version": "1.6.0",
+        "archive_url": "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts/secrets-store-csi-driver-1.6.0.tgz",
+        "archive_sha256": "63a35e803d78a07df990411fc2df66d1f9426ed4508cc5794b5b4f125bb50744",
+        "chart_lock_dependency_digest": "sha256:66db1a40a610d6c86fe086ec50b10247e9e77d1bcecae874f6a570b77eabb41a",
+        "image": "registry.k8s.io/csi-secrets-store/driver:v1.6.0"
+      }
+    },
+    "metrics_server": {
+      "release": "metrics-server",
+      "chart": "metrics-server",
+      "chart_version": "3.14.0",
+      "app_version": "0.9.0",
+      "repository": "https://kubernetes-sigs.github.io/metrics-server",
+      "archive_url": "https://github.com/kubernetes-sigs/metrics-server/releases/download/metrics-server-helm-chart-3.14.0/metrics-server-3.14.0.tgz",
+      "archive_sha256": "c2ca1185c01e6e7f53dd1b7d131f0c9b3fa50e003ed068b784563a1b5a3422a1",
+      "image": "registry.k8s.io/metrics-server/metrics-server:v0.9.0",
+      "source": "https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md",
+      "minimum_kubernetes": "1.34"
+    }
+  },
+  "rollout_targets": [
+    "deployment/aws-load-balancer-controller",
+    "daemonset/secrets-provider-aws-secrets-store-csi-driver-provider-aws",
+    "daemonset/secrets-store-csi-driver",
+    "deployment/metrics-server"
+  ]
+}

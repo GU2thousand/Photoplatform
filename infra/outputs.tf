@@ -1,4 +1,11 @@
 output "region" { value = var.region }
+output "vpc_id" { value = module.network.vpc_id }
+output "public_subnet_ids" { value = module.network.public_subnet_ids }
+output "ecr_repository_arns" { value = module.ecs.ecr_repository_arns }
+output "github_oidc_provider_arn" { value = var.github_oidc_provider_arn != null ? var.github_oidc_provider_arn : aws_iam_openid_connect_provider.github[0].arn }
+output "frontend_bucket_arn" { value = module.s3.buckets["frontend"].arn }
+output "frontend_distribution_arn" { value = module.cloudfront.distributions["frontend"].arn }
+output "media_bucket_arn" { value = module.s3.buckets["media"].arn }
 output "github_deploy_role_arn" { value = aws_iam_role.github_deploy.arn }
 output "ecs_cluster_name" { value = module.ecs.cluster_name }
 output "api_service_name" { value = module.ecs.service_names["api"] }

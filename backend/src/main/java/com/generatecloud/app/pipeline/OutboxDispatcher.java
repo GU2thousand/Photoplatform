@@ -29,6 +29,7 @@ public class OutboxDispatcher {
         metrics.gauge("worker_active_jobs",this,self -> self.count("status='RUNNING' AND lease_until>now()"));
         metrics.gauge("media_dead_letter_jobs",this,self -> self.count("status='DLQ'"));
         metrics.gauge("media_outbox_pending",this,self -> self.scalar("SELECT count(*) FROM media_outbox WHERE last_published_at IS NULL"));
+        metrics.gauge("media_outbox_oldest_age_seconds",this,self -> self.scalar("SELECT coalesce(extract(epoch FROM now()-min(created_at)),0) FROM media_outbox WHERE last_published_at IS NULL"));
         metrics.gauge("media_oldest_queued_job_age_seconds",this,self -> self.scalar("SELECT coalesce(extract(epoch FROM now()-min(created_at)),0) FROM media_processing_jobs WHERE status IN ('QUEUED','RETRY') AND next_attempt_at<=now()"));
     }
     private double count(String predicate) {
@@ -43,15 +44,27 @@ public class OutboxDispatcher {
 
     @Scheduled(fixedDelayString="${app.pipeline.dispatch-interval-ms:500}")
     public void dispatch() {
-        // Unconfirmed publications and expired worker leases remain recoverable in PostgreSQL.
-        var due=jdbc.queryForList("""
-            SELECT j.id,j.job_type,j.status,j.attempt,j.traceparent FROM media_outbox o JOIN media_processing_jobs j ON j.id=o.job_id
-            WHERE ((j.status IN ('QUEUED','RETRY') AND j.next_attempt_at<=now())
-                   OR (j.status='RUNNING' AND j.lease_until<now()) OR j.status='DLQ')
-            AND (o.last_published_at IS NULL OR (j.status<>'DLQ' AND o.last_published_at<now()-interval '5 minutes'))
-            ORDER BY o.last_published_at NULLS FIRST,j.created_at LIMIT 100
-            """);
-        for(var row:due) {
+        // One short atomic claim per publication. No transaction spans broker I/O.
+        // Lease recovery handles a killed publisher; confirmation/writeback crashes
+        // can still redeliver, so this does not promise exactly-once publication.
+        for(int index=0; index<100; index++) {
+            UUID claim = UUID.randomUUID();
+            var due=jdbc.queryForList("""
+                WITH candidate AS (
+                  SELECT o.job_id FROM media_outbox o JOIN media_processing_jobs j ON j.id=o.job_id
+                  WHERE ((j.status IN ('QUEUED','RETRY') AND j.next_attempt_at<=now())
+                         OR (j.status='RUNNING' AND j.lease_until<now()) OR j.status='DLQ')
+                  AND (o.last_published_at IS NULL OR (j.status<>'DLQ' AND o.last_published_at<now()-interval '5 minutes'))
+                  AND (o.publication_claim_token IS NULL OR o.publication_lease_until<now())
+                  ORDER BY o.last_published_at NULLS FIRST,j.created_at
+                  FOR UPDATE OF o SKIP LOCKED LIMIT 1
+                )
+                UPDATE media_outbox o SET publication_claim_token=?,publication_lease_until=now()+interval '45 seconds'
+                FROM candidate c,media_processing_jobs j WHERE o.job_id=c.job_id AND j.id=o.job_id
+                RETURNING j.id,j.job_type,j.status,j.attempt,j.traceparent
+                """, claim);
+            if(due.isEmpty()) break;
+            var row=due.get(0);
             String id=row.get("id").toString();
             String queue=row.get("status").equals("DLQ")?"media.dlq":switch(row.get("job_type").toString()) {
                 case "EMBED" -> "media.embed"; case "DELETE" -> "media.delete"; default -> "media.process";
@@ -65,11 +78,15 @@ public class OutboxDispatcher {
                 jdbc.update("""
                     UPDATE media_outbox o SET last_published_at=now() FROM media_processing_jobs j
                     WHERE o.job_id=j.id AND j.id=? AND j.status=? AND j.attempt=?
-                    """,UUID.fromString(id),row.get("status"),row.get("attempt"));
+                    AND o.publication_claim_token=? AND o.publication_lease_until>now()
+                    """,UUID.fromString(id),row.get("status"),row.get("attempt"),claim);
             } catch(Exception exception) {
                 metrics.counter("media_publish_failures").increment();
                 log.warn("Media job {} publication deferred: {}",id,exception.getClass().getSimpleName());
                 break; // avoid repeatedly waiting against an unavailable broker
+            } finally {
+                jdbc.update("UPDATE media_outbox SET publication_claim_token=NULL,publication_lease_until=NULL WHERE job_id=? AND publication_claim_token=?",
+                        UUID.fromString(id),claim);
             }
         }
     }

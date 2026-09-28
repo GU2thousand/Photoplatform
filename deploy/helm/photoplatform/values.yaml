@@ -1,0 +1,169 @@
+# This intentionally requires a deployment overlay; no credentials or deployable
+# placeholder image digests are included. See ../values-local.yaml for kind.
+environment: dev
+runtimeMode: aws
+release:
+  commitSha: ""
+aws:
+  accountId: ""
+  region: ""
+  clusterName: ""
+images:
+  api: {repository: "", digest: ""}
+  mediaWorker: {repository: "", digest: ""}
+  ml: {repository: "", digest: ""}
+  queueCollector: {repository: "", digest: ""}
+  prometheus: {repository: quay.io/prometheus/prometheus, digest: ""}
+  otel: {repository: otel/opentelemetry-collector-contrib, digest: ""}
+  kubeStateMetrics: {repository: registry.k8s.io/kube-state-metrics/kube-state-metrics, digest: ""}
+config:
+  databaseHost: ""
+  databaseName: photoplatform
+  databasePort: 5432
+  databaseSslMode: verify-full
+  rabbitmqHost: ""
+  rabbitmqPort: 5671
+  rabbitmqTls: true
+  storageBucket: ""
+  storagePrefix: photoplatform
+  corsAllowedOrigins: ""
+  cdnDomain: ""
+  cdnKeyPairId: ""
+  mediaUrlProvider: s3
+  modelVersion: clip-vit-b32-openai-v1
+  # Isolated local mode only; never accepted by AWS mode.
+  storageEndpoint: ""
+  storagePublicEndpoint: ""
+api:
+  replicas: 2
+  exposeInstanceId: false
+  dbPoolMax: 10
+  dbPoolMinIdle: 2
+  terminationGracePeriodSeconds: 90
+  preStopSeconds: 15
+  shutdownSeconds: 30
+  javaToolOptions: "-XX:MaxRAMPercentage=65.0 -XX:+ExitOnOutOfMemoryError"
+  resources:
+    requests: {cpu: 500m, memory: 768Mi}
+    limits: {cpu: "2", memory: 1Gi}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+mediaWorker:
+  replicas: 1
+  maxReplicas: 4
+  terminationGracePeriodSeconds: 150
+  drainSeconds: 100
+  resources:
+    requests: {cpu: 500m, memory: 512Mi}
+    limits: {cpu: "2", memory: 1Gi}
+ml:
+  enabled: false
+  encoderReplicas: 1
+  embeddingReplicas: 1
+  maxEmbeddingReplicas: 4
+  nodeSelector: {photoplatform.io/workload: ml}
+  tolerations: [{key: workload, operator: Equal, value: ml, effect: NoSchedule}]
+  encoderResources:
+    requests: {cpu: "2", memory: 3Gi}
+    limits: {cpu: "4", memory: 6Gi}
+  embeddingResources:
+    requests: {cpu: "2", memory: 3Gi}
+    limits: {cpu: "4", memory: 6Gi}
+  startupFailureThreshold: 120
+  modelCacheSizeLimit: 5Gi
+nodeSelector: {photoplatform.io/workload: application}
+tolerations: []
+topology:
+  enabled: true
+  whenUnsatisfiable: DoNotSchedule
+migration:
+  enabled: true
+  name: ""
+  revision: ""
+  activeDeadlineSeconds: 900
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: "1", memory: 768Mi}
+# Each ARN is a distinct JSON Secrets Manager secret. Only listed keys are mounted
+# and the image explicitly reads KEY_FILE. Never put values in this file.
+secrets:
+  provider: csi
+  api:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD, APP_JWT_SECRET, RABBITMQ_USER, RABBITMQ_PASSWORD]
+  mediaWorker:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [DATABASE_USER, DATABASE_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD]
+  embeddingWorker:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [DATABASE_USER, DATABASE_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD]
+  encoder:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [ENCODER_TOKEN]
+  migrator:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [MIGRATOR_DATABASE_USERNAME, MIGRATOR_DATABASE_PASSWORD]
+  queueCollector:
+    arn: ""
+    versionId: ""
+    existingSecret: ""
+    keys: [RABBITMQ_USER, RABBITMQ_PASSWORD]
+ingress:
+  enabled: true
+  host: ""
+  certificateArn: ""
+  scheme: internet-facing
+  # A dedicated ALB; do not set group.name to the existing ECS ALB.
+  loadBalancerName: ""
+  securityGroups: []
+  subnets: []
+  idleTimeoutSeconds: 120
+  deregistrationDelaySeconds: 30
+network:
+  enabled: true
+  ingressCidrs: []
+  databaseCidrs: []
+  brokerCidrs: []
+  kubernetesApiCidrs: []
+  # Local dependencies are pods in the same namespace, tagged part-of=photoplatform.
+  allowLocalDependencies: false
+capacity:
+  # Explicit allocatable application connections after RDS reserve + other clients.
+  databaseConnectionBudget: 80
+  administrativeReserve: 10
+  migrationReserve: 2
+  probeReserve: 8
+queueCollector:
+  enabled: false
+  rbacProvisioned: false
+  managementPort: 443
+  managementScheme: https
+  intervalSeconds: 30
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+telemetry:
+  enabled: false
+  rbacProvisioned: false
+  prometheusRetention: 24h
+  prometheusStorageSizeLimit: 2Gi
+  otlpExporterEndpoint: ""
+  resources:
+    requests: {cpu: 200m, memory: 256Mi}
+    limits: {cpu: "1", memory: 512Mi}

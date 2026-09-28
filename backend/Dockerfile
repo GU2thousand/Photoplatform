@@ -22,8 +22,14 @@ RUN apt-get update \
 
 COPY --from=build /app/build/libs/*.jar /app/app.jar
 COPY --from=build /app/build/otel/opentelemetry-javaagent.jar /app/opentelemetry-javaagent.jar
+COPY start.sh migrate.sh /app/
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid 10001 --no-create-home app \
+    && chmod 0555 /app/start.sh /app/migrate.sh \
+    && chmod -R a+rX /app
 ENV OTEL_SDK_DISABLED=true OTEL_SERVICE_NAME=media-api OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65 -Djava.io.tmpdir=/tmp"
+USER 10001:10001
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["/app/start.sh"]

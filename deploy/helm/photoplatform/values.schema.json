@@ -1,0 +1,1454 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "type": "string",
+      "enum": [
+        "dev",
+        "prod"
+      ]
+    },
+    "runtimeMode": {
+      "type": "string",
+      "enum": [
+        "aws",
+        "local"
+      ]
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commitSha": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "commitSha"
+      ]
+    },
+    "aws": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "clusterName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "region",
+        "clusterName"
+      ]
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "mediaWorker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "ml": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "queueCollector": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "prometheus": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "otel": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        },
+        "kubeStateMetrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9._/-]*$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "repository",
+            "digest"
+          ]
+        }
+      },
+      "required": [
+        "api",
+        "mediaWorker",
+        "ml",
+        "queueCollector",
+        "prometheus",
+        "otel",
+        "kubeStateMetrics"
+      ]
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "databaseHost": {
+          "type": "string"
+        },
+        "databaseName": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_]+$"
+        },
+        "databasePort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "databaseSslMode": {
+          "type": "string",
+          "enum": [
+            "verify-full",
+            "disable"
+          ]
+        },
+        "rabbitmqHost": {
+          "type": "string"
+        },
+        "rabbitmqPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "rabbitmqTls": {
+          "type": "boolean"
+        },
+        "storageBucket": {
+          "type": "string"
+        },
+        "storagePrefix": {
+          "type": "string"
+        },
+        "corsAllowedOrigins": {
+          "type": "string"
+        },
+        "cdnDomain": {
+          "type": "string"
+        },
+        "cdnKeyPairId": {
+          "type": "string"
+        },
+        "mediaUrlProvider": {
+          "type": "string",
+          "enum": [
+            "s3",
+            "cloudfront"
+          ]
+        },
+        "modelVersion": {
+          "type": "string"
+        },
+        "storageEndpoint": {
+          "type": "string"
+        },
+        "storagePublicEndpoint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "databaseHost",
+        "databaseName",
+        "databasePort",
+        "databaseSslMode",
+        "rabbitmqHost",
+        "rabbitmqPort",
+        "rabbitmqTls",
+        "storageBucket",
+        "storagePrefix",
+        "corsAllowedOrigins",
+        "cdnDomain",
+        "cdnKeyPairId",
+        "mediaUrlProvider",
+        "modelVersion",
+        "storageEndpoint",
+        "storagePublicEndpoint"
+      ]
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "dbPoolMax": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "dbPoolMinIdle": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 600
+        },
+        "preStopSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "shutdownSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "javaToolOptions": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "autoscaling": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "minReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "maxReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            },
+            "targetCPUUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "targetMemoryUtilizationPercentage": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "enabled",
+            "minReplicas",
+            "maxReplicas",
+            "targetCPUUtilizationPercentage",
+            "targetMemoryUtilizationPercentage"
+          ]
+        },
+        "exposeInstanceId": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "replicas",
+        "dbPoolMax",
+        "dbPoolMinIdle",
+        "terminationGracePeriodSeconds",
+        "preStopSeconds",
+        "shutdownSeconds",
+        "javaToolOptions",
+        "resources",
+        "autoscaling",
+        "exposeInstanceId"
+      ]
+    },
+    "mediaWorker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer",
+          "minimum": 120,
+          "maximum": 900
+        },
+        "drainSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        }
+      },
+      "required": [
+        "replicas",
+        "maxReplicas",
+        "terminationGracePeriodSeconds",
+        "drainSeconds",
+        "resources"
+      ]
+    },
+    "ml": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "encoderReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "embeddingReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "maxEmbeddingReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "Equal",
+                  "Exists"
+                ]
+              },
+              "value": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "NoSchedule",
+                  "PreferNoSchedule",
+                  "NoExecute"
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "operator",
+              "value",
+              "effect"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "encoderResources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "embeddingResources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "startupFailureThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 360
+        },
+        "modelCacheSizeLimit": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+        }
+      },
+      "required": [
+        "enabled",
+        "encoderReplicas",
+        "embeddingReplicas",
+        "maxEmbeddingReplicas",
+        "nodeSelector",
+        "tolerations",
+        "encoderResources",
+        "embeddingResources",
+        "startupFailureThreshold",
+        "modelCacheSizeLimit"
+      ]
+    },
+    "nodeSelector": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tolerations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "Equal",
+              "Exists"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "NoSchedule",
+              "PreferNoSchedule",
+              "NoExecute"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "operator",
+          "value",
+          "effect"
+        ]
+      },
+      "uniqueItems": true,
+      "minItems": 0
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "whenUnsatisfiable": {
+          "type": "string",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "whenUnsatisfiable"
+      ]
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]*$",
+          "maxLength": 63
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]*$",
+          "maxLength": 32
+        },
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "backoffLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ttlSecondsAfterFinished": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 604800
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "name",
+        "revision",
+        "activeDeadlineSeconds",
+        "backoffLimit",
+        "ttlSecondsAfterFinished",
+        "resources"
+      ]
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "csi",
+            "kubernetes"
+          ]
+        },
+        "api": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        },
+        "mediaWorker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        },
+        "embeddingWorker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        },
+        "encoder": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        },
+        "migrator": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        },
+        "queueCollector": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "arn": {
+              "type": "string"
+            },
+            "versionId": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9-]*$"
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "keys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "SPRING_DATASOURCE_USERNAME",
+                  "SPRING_DATASOURCE_PASSWORD",
+                  "APP_JWT_SECRET",
+                  "RABBITMQ_USER",
+                  "RABBITMQ_PASSWORD",
+                  "DATABASE_USER",
+                  "DATABASE_PASSWORD",
+                  "ENCODER_TOKEN",
+                  "CDN_PRIVATE_KEY_PEM",
+                  "MIGRATOR_DATABASE_USERNAME",
+                  "MIGRATOR_DATABASE_PASSWORD",
+                  "STORAGE_ACCESS_KEY",
+                  "STORAGE_SECRET_KEY"
+                ]
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "arn",
+            "versionId",
+            "existingSecret",
+            "keys"
+          ]
+        }
+      },
+      "required": [
+        "provider",
+        "api",
+        "mediaWorker",
+        "embeddingWorker",
+        "encoder",
+        "migrator",
+        "queueCollector"
+      ]
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "host": {
+          "type": "string"
+        },
+        "certificateArn": {
+          "type": "string"
+        },
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "internet-facing",
+            "internal"
+          ]
+        },
+        "loadBalancerName": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "securityGroups": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sg-[a-f0-9]+$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "subnets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^subnet-[a-f0-9]+$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "idleTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 600
+        },
+        "deregistrationDelaySeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120
+        }
+      },
+      "required": [
+        "enabled",
+        "host",
+        "certificateArn",
+        "scheme",
+        "loadBalancerName",
+        "securityGroups",
+        "subnets",
+        "idleTimeoutSeconds",
+        "deregistrationDelaySeconds"
+      ]
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ingressCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "databaseCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "brokerCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "kubernetesApiCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$"
+          },
+          "uniqueItems": true,
+          "minItems": 0
+        },
+        "allowLocalDependencies": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "ingressCidrs",
+        "databaseCidrs",
+        "brokerCidrs",
+        "kubernetesApiCidrs",
+        "allowLocalDependencies"
+      ]
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "databaseConnectionBudget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "administrativeReserve": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "migrationReserve": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "probeReserve": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "databaseConnectionBudget",
+        "administrativeReserve",
+        "migrationReserve",
+        "probeReserve"
+      ]
+    },
+    "queueCollector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "managementPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "managementScheme": {
+          "type": "string",
+          "enum": [
+            "https",
+            "http"
+          ]
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 120
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "rbacProvisioned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "managementPort",
+        "managementScheme",
+        "intervalSeconds",
+        "resources",
+        "rbacProvisioned"
+      ]
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "prometheusRetention": {
+          "type": "string",
+          "pattern": "^[0-9]+[hd]$"
+        },
+        "prometheusStorageSizeLimit": {
+          "type": "string",
+          "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+        },
+        "otlpExporterEndpoint": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "cpu": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                },
+                "memory": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(?:\\.[0-9]+)?(?:m|Ki|Mi|Gi|Ti)?$"
+                }
+              },
+              "required": [
+                "cpu",
+                "memory"
+              ]
+            }
+          },
+          "required": [
+            "requests",
+            "limits"
+          ]
+        },
+        "rbacProvisioned": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "prometheusRetention",
+        "prometheusStorageSizeLimit",
+        "otlpExporterEndpoint",
+        "resources",
+        "rbacProvisioned"
+      ]
+    }
+  },
+  "required": [
+    "environment",
+    "runtimeMode",
+    "release",
+    "aws",
+    "images",
+    "config",
+    "api",
+    "mediaWorker",
+    "ml",
+    "nodeSelector",
+    "tolerations",
+    "topology",
+    "migration",
+    "secrets",
+    "ingress",
+    "network",
+    "capacity",
+    "queueCollector",
+    "telemetry"
+  ]
+}

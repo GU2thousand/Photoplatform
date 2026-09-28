@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-runtime
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "runtime") | nindent 4 }}
+data:
+  # Only public configuration. Credentials are file mounts, never Helm values.
+  {{- $env := include "photo.publicEnv" . | fromYamlArray }}
+  {{- range $env }}
+  {{ .name }}: {{ .value | quote }}
+  {{- end }}
