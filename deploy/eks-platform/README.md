@@ -93,6 +93,16 @@ group and use IP targets, HTTPS and its independently reviewed domain/certificat
 LBC does not take ownership of the preexisting ECS ALB or target groups. The EKS
 node security group must permit control-plane webhook connections to TCP 9443.
 Node groups and workload subnet/security group choices remain in Terraform.
+Bootstrap explicitly sets the pinned chart's `enableBackendSecurityGroup=false`
+and `enableManageBackendSecurityGroupRules=false`; it verifies the corresponding
+rendered controller arguments before Helm installation. The application Ingress
+must set `alb.ingress.kubernetes.io/manage-backend-security-group-rules: "false"`
+when using its custom Terraform-owned frontend group. Terraform must allow ALB
+egress to the target/health-check port and TCP 8080 ingress from that frontend
+group to the actual target ENI security group (the node group in this ordinary
+VPC CNI path). If Security Groups for Pods are adopted, review the target Pod
+security group rules separately. Enabling the Ingress annotation while shared
+backend groups are disabled is rejected by LBC.
 
 ASCP installs the CSI Driver from its verified bundled dependency. Secret sync
 and automatic rotation are explicitly disabled. Application

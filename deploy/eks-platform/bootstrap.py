@@ -138,6 +138,7 @@ def chart_settings(name: str, args: argparse.Namespace) -> list[str]:
         values = {"clusterName": args.cluster, "region": args.region, "vpcId": args.vpc_id,
                   "serviceAccount.create": "false", "serviceAccount.name": "aws-load-balancer-controller",
                   "image.tag": "v3.5.0", "enableServiceMutatorWebhook": "false",
+                  "enableBackendSecurityGroup": "false", "enableManageBackendSecurityGroupRules": "false",
                   "watchNamespace": NAMESPACES[args.environment],
                   "controllerConfig.featureGates.NLBGatewayAPI": "false",
                   "controllerConfig.featureGates.ALBGatewayAPI": "false",
@@ -157,6 +158,14 @@ def chart_settings(name: str, args: argparse.Namespace) -> list[str]:
     for key, value in values.items():
         result += ["--set", f"{key}={value}"]
     return result
+
+
+def validate_lbc_render(rendered: str) -> None:
+    """Reject a chart/value mismatch that would reintroduce controller SG ownership."""
+    for flag in ["enable-backend-security-group", "enable-manage-backend-security-group-rules"]:
+        matches = re.findall(r"(?m)^\s*-\s*[\"']?--" + flag + r"=([^\s\"']+)", rendered)
+        if matches != ["false"]:
+            raise ValueError(f"Rendered LBC must explicitly disable --{flag}; Terraform owns security groups/rules")
 
 
 def namespace_manifest(args: argparse.Namespace, versions: dict) -> str:
@@ -298,10 +307,12 @@ def bootstrap(args: argparse.Namespace) -> None:
                 # Helm does not update CRDs on upgrade. Apply only CRDs from the
                 # verified archive (including bundled dependencies), never main.
                 crds = run(["helm", "show", "crds", str(chart)])
+                rendered = run(["helm", "template", component["release"], str(chart),
+                                "--namespace", "kube-system", "--include-crds",
+                                "--kube-version", versions["kubernetes"] + ".0", *settings])
+                if name == "aws_load_balancer_controller":
+                    validate_lbc_render(rendered)
                 if args.render_dir:
-                    rendered = run(["helm", "template", component["release"], str(chart),
-                                    "--namespace", "kube-system", "--include-crds",
-                                    "--kube-version", versions["kubernetes"] + ".0", *settings])
                     (renderdir / f"{name}.yaml").write_text(rendered)
                     (renderdir / f"{name}.yaml").chmod(0o600)
                 else:

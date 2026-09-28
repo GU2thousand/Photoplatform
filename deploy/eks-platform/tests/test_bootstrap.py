@@ -78,7 +78,7 @@ class PlatformBootstrapSafetyTests(unittest.TestCase):
             with patch.object(platform.shutil, "which", return_value="helm"), \
                  patch.object(platform, "preflight", side_effect=AssertionError("AWS preflight in render mode")), \
                  patch.object(platform, "download_chart", return_value=Path(temp) / "chart.tgz"), \
-                 patch.object(platform, "run", return_value="---\n" ) as commands:
+                 patch.object(platform, "run", return_value="---\n        - --enable-backend-security-group=false\n        - --enable-manage-backend-security-group-rules=false\n" ) as commands:
                 platform.bootstrap(args)
             self.assertTrue(all(command.args[0][0] == "helm" for command in commands.call_args_list))
             self.assertEqual(json.loads((Path(args.evidence_dir) / "bootstrap.json").read_text())["status"], "rendered")
@@ -147,6 +147,14 @@ class PlatformBootstrapSafetyTests(unittest.TestCase):
         with patch.object(platform.subprocess, "run", return_value=permissive):
             with self.assertRaisesRegex(ValueError, "secrets"):
                 platform.verify_observability_rbac({}, "photoplatform-dev")
+
+    def test_chart_render_must_disable_controller_security_group_management(self):
+        valid = "        - --enable-backend-security-group=false\n        - --enable-manage-backend-security-group-rules=false\n"
+        platform.validate_lbc_render(valid)
+        for invalid in ["---\n", valid.replace("enable-backend-security-group=false", "enable-backend-security-group=true"),
+                        valid.replace("enable-manage-backend-security-group-rules=false", "enable-manage-backend-security-group-rules=true")]:
+            with self.subTest(render=invalid), self.assertRaisesRegex(ValueError, "Terraform owns"):
+                platform.validate_lbc_render(invalid)
 
 
 if __name__ == "__main__":
