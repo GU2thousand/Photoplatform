@@ -51,6 +51,11 @@ jobs:
             2>&1 | tee output/playwright/model-cache-filesystem.log
       - name: Boot production frontend, API, PostgreSQL, object store, broker and real CLIP services
         run: docker compose --profile search up --no-build --detach --wait --wait-timeout 600
+      - name: Verify loaded encoder checkpoint, readiness and runtime package identity
+        run: |
+          python scripts/encoder_runtime_evidence.py \
+            --output output/playwright/encoder-runtime-identity.json \
+            2>&1 | tee output/playwright/encoder-runtime-identity.log
       - name: Verify upload, access control and deletion over real HTTP
         run: python scripts/integration_test.py 2>&1 | tee output/playwright/integration.log
       - name: Verify real CLIP embeddings and semantic/hybrid access filters
