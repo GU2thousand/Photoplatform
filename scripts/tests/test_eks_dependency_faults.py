@@ -2,6 +2,8 @@
 import copy
 import json
 import os
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -347,25 +349,37 @@ class EvidenceTests(unittest.TestCase):
         api = Mock()
         api.state.return_value = {"status": "PROCESSING", "mediaId": 12}
         reports = []
+        paths = []
+        temporary = tempfile.TemporaryDirectory(prefix="synthetic-eks-unit-")
+        self.addCleanup(temporary.cleanup)
+        output = str(Path(temporary.name) / "synthetic-eks-dependency.json")
+        def save_synthetic(path, report):
+            paths.append(path)
+            captured = copy.deepcopy(report)
+            captured["executionScope"] = "synthetic_unit_test"
+            reports.append(captured)
         clocks = iter([0, 1, 241] + [242] * 20)
         final = AssertionError("Worker restarted during durable recovery") if final_restart else SUMMARY
         argv = ["eks_dependency_faults.py", "--dependency", "database", "--pod-name", "worker-a", "--pod-uid", UID,
-                "--upload-id", "upload", "--job-id", "job"]
+                "--upload-id", "upload", "--job-id", "job", "--output", output]
         with patch.dict(os.environ, ENV, clear=True), patch.object(faults, "eks_guard", return_value=(Mock(), cluster, {})), \
                 patch.object(faults, "IsolatedFault", return_value=fault), patch.object(faults, "probe", side_effect=[baseline, outage, second_outage, baseline]), \
                 patch.object(faults, "same_pod", side_effect=[SUMMARY, SUMMARY | {"ready": kube_ready}, SUMMARY | {"ready": kube_ready}, SUMMARY, final]), \
                 patch.object(faults, "CloudAPI", return_value=api), patch.object(faults, "running_job", return_value={"status": "RUNNING"}), \
                 patch.object(faults, "database_timings", return_value={"rows": [{"status": job_status}]}), \
                 patch.object(faults, "queue_snapshot", return_value={"consumers": 1}), \
-                patch.object(faults, "write_report", side_effect=lambda path, report: reports.append(copy.deepcopy(report))), \
+                patch.object(faults, "write_report", side_effect=save_synthetic), \
                 patch.object(faults.time, "monotonic", side_effect=lambda: next(clocks)), patch.object(faults.time, "sleep"), patch("sys.argv", argv):
             code = faults.main()
+        self.assertEqual(set(paths), {output})
+        self.assertFalse(Path(output).exists(), "Mock tests must not emit a real cloud evidence file")
         return code, reports, fault
 
     def test_pass_requires_denial_readiness_no_restart_and_durable_recovery(self):
         code, reports, fault = self.run_scenario()
         self.assertEqual(code, 0)
         self.assertEqual(reports[-1]["status"], "PASS")
+        self.assertEqual(reports[-1]["executionScope"], "synthetic_unit_test")
         self.assertEqual(reports[-1]["matrixStatus"], "INCOMPLETE")
         self.assertIn("restorePlan", reports[0])
         self.assertGreaterEqual(reports[-1]["outageHeldSeconds"], 240)
