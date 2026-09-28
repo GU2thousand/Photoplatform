@@ -26,6 +26,9 @@ ACCOUNTS = [{"id": 11, "name": "Fixture A", "email": "a@fixture.example", "role"
 TEAM = {"id": 9, "memberCount": 2, "members": [{"id": 11}, {"id": 12}]}
 ENV = {"TEAM_A_TOKEN": "PRIVATE-A", "TEAM_B_TOKEN": "PRIVATE-B", "TEAM_ID": "9",
        "API_URL": "https://dev.example.com", "CLOUD_FRONTEND_ORIGIN": "https://frontend.example.com"}
+# Main-flow tests mock write_report. Keep even their CLI/log path separate from
+# real cloud evidence so a captured test log cannot imply an EKS run happened.
+UNIT_OUTPUT = "work/unit-test-synthetic/eks-replica-mocked-not-cloud.json"
 
 
 class SocketTimeout(Exception):
@@ -364,7 +367,8 @@ class PublicAndEvidenceTests(unittest.TestCase):
         writes = []
         with patch.dict(os.environ, {}, clear=True), patch.object(replica, "eks_guard") as guard, \
                 patch.object(replica, "PodForward") as forward, patch.object(replica, "write_report", side_effect=lambda path, data: writes.append(copy.deepcopy(data))), \
-                patch("sys.argv", ["eks_replica_acceptance.py", "--restart-pod-a"]):
+                patch.object(replica, "print", create=True), \
+                patch("sys.argv", ["eks_replica_acceptance.py", "--output", UNIT_OUTPUT, "--restart-pod-a"]):
             self.assertEqual(replica.main(), 1)
         guard.assert_not_called()
         forward.assert_not_called()
@@ -424,7 +428,8 @@ class PublicAndEvidenceTests(unittest.TestCase):
                 patch.object(replica.ReplicaSuite, "public_distribution", return_value={"unitTestOnly": True}), \
                 patch.object(replica, "open_socket") as open_socket, \
                 patch.object(replica, "write_report", side_effect=lambda path, data: writes.append(copy.deepcopy(data))), \
-                patch("sys.argv", ["eks_replica_acceptance.py"]):
+                patch.object(replica, "print", create=True), \
+                patch("sys.argv", ["eks_replica_acceptance.py", "--output", UNIT_OUTPUT]):
             self.assertEqual(replica.main(), 2)
         open_socket.assert_not_called()
         report = writes[-1]
@@ -441,7 +446,8 @@ class PublicAndEvidenceTests(unittest.TestCase):
                 patch.object(replica, "eks_guard", side_effect=RuntimeError("Bearer PRIVATE-A signed-url?token=secret")), \
                 patch.object(replica, "PodForward") as forward, \
                 patch.object(replica, "write_report", side_effect=lambda path, data: writes.append(copy.deepcopy(data))), \
-                patch("sys.argv", ["eks_replica_acceptance.py"]):
+                patch.object(replica, "print", create=True), \
+                patch("sys.argv", ["eks_replica_acceptance.py", "--output", UNIT_OUTPUT]):
             self.assertEqual(replica.main(), 1)
         forward.assert_not_called()
         self.assertEqual(writes[-1]["fatalErrorType"], "RuntimeError")
