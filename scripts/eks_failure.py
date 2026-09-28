@@ -1,4 +1,4 @@
-"""Delete one exact disposable media worker Pod with a server-side UID precondition.
+"""Interrupt one exact disposable media worker with graceful deletion or SIGKILL.
 
 Requires an explicitly identified RUNNING MEDIA_PROCESS job whose worker_id is the
 selected Pod hostname. Graceful deletion is a shutdown/recovery scenario, not proof

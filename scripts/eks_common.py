@@ -234,8 +234,22 @@ def eks_guard():
                 len([p for p in state["pods"] if p["ready"] and not p["terminating"]]) != state["replicas"]):
             raise ValueError("Guard requires a settled release with all selected replicas Ready")
         evidence[component] = state
+    evidence["publicApiResponse"] = verify_public_pod(control, evidence["api"])
     evidence["eks"] = control.cluster_evidence
     return aws, control, evidence
+
+
+def verify_public_pod(control, state):
+    """Dev response identity ties DNS/ALB business traffic to the selected Pod/SHA."""
+    import requests
+    response = requests.get(secure_origin(required("API_URL")) + "/readyz", timeout=15, allow_redirects=False)
+    uid = response.headers.get("X-Photoplatform-Pod-Uid")
+    sha = response.headers.get("X-Photoplatform-Revision")
+    ready_uids = {p["uid"] for p in state["pods"] if p["ready"] and not p["terminating"]}
+    if response.status_code != 200 or uid not in ready_uids or sha != control.sha:
+        raise ValueError("Public EKS dev readiness must return a guarded Pod UID/revision; enable dev api.exposeInstanceId")
+    return {"statusCode": response.status_code, "podUid": uid, "revision": sha,
+            "scope": "One actual public HTTPS response; multi-Pod distribution requires replica acceptance"}
 
 
 def queue_snapshot():

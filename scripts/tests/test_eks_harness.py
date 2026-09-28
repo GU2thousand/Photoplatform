@@ -258,6 +258,20 @@ class HarnessIdentityTests(unittest.TestCase):
 
 
 class ReportAndSafetyTests(unittest.TestCase):
+    def test_public_dns_response_must_identify_the_selected_ready_pod_and_sha(self):
+        response = Mock(status_code=200, headers={"X-Photoplatform-Pod-Uid": "legacy-pod", "X-Photoplatform-Revision": SHA})
+        state = {"pods": [{"uid": POD_UID, "ready": True, "terminating": False}]}
+        with patch.dict(os.environ, ENV), patch.dict("sys.modules", {"requests": Mock(get=Mock(return_value=response))}):
+            with self.assertRaises(ValueError):
+                eks_common.verify_public_pod(Mock(sha=SHA), state)
+            response.headers["X-Photoplatform-Pod-Uid"] = POD_UID
+            response.headers["X-Photoplatform-Revision"] = "c" * 40
+            with self.assertRaises(ValueError):
+                eks_common.verify_public_pod(Mock(sha=SHA), state)
+            response.headers["X-Photoplatform-Revision"] = SHA
+            result = eks_common.verify_public_pod(Mock(sha=SHA), state)
+        self.assertEqual(result["podUid"], POD_UID)
+
     def test_mutable_image_or_mismatched_sha_refused(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, ENV):
             path = Path(directory) / "images.json"
