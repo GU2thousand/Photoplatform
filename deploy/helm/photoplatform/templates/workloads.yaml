@@ -1,0 +1,203 @@
+{{- $workloads := dict "api" (dict "replicas" .Values.api.replicas "image" .Values.images.api "resources" .Values.api.resources "secret" .Values.secrets.api) "media-worker" (dict "replicas" .Values.mediaWorker.replicas "image" .Values.images.mediaWorker "resources" .Values.mediaWorker.resources "secret" .Values.secrets.mediaWorker) -}}
+{{- if .Values.ml.enabled }}
+  {{- $_ := set $workloads "encoder" (dict "replicas" .Values.ml.encoderReplicas "image" .Values.images.ml "resources" .Values.ml.encoderResources "secret" .Values.secrets.encoder) -}}
+  {{- $_ := set $workloads "embedding-worker" (dict "replicas" .Values.ml.embeddingReplicas "image" .Values.images.ml "resources" .Values.ml.embeddingResources "secret" .Values.secrets.embeddingWorker) -}}
+{{- end -}}
+{{- range $component, $w := $workloads }}
+{{ $api := eq $component "api" -}}
+{{- $encoder := eq $component "encoder" -}}
+{{- $ml := or $encoder (eq $component "embedding-worker") -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}
+  labels:
+    {{- include "photo.labels" (dict "root" $ "component" $component) | nindent 4 }}
+  annotations:
+    {{- include "photo.annotations" $ | nindent 4 }}
+spec:
+  {{- if or (not $api) (not $.Values.api.autoscaling.enabled) }}
+  replicas: {{ $w.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  progressDeadlineSeconds: {{ ternary 1800 600 $ml }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" $ "component" $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo.labels" (dict "root" $ "component" $component) | nindent 8 }}
+      annotations:
+        {{- include "photo.annotations" $ | nindent 8 }}
+        photoplatform.io/image-digest: {{ $w.image.digest | quote }}
+        photoplatform.io/secret-version: {{ $w.secret.versionId | quote }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") $ | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ ternary "9091" (ternary "8090" "9100" $encoder) $api | quote }}
+        prometheus.io/path: {{ ternary "/actuator/prometheus" "/metrics" $api | quote }}
+    spec:
+      serviceAccountName: {{ $.Release.Name }}-{{ $component }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ ternary $.Values.api.terminationGracePeriodSeconds $.Values.mediaWorker.terminationGracePeriodSeconds $api }}
+      securityContext:
+        {{- include "photo.security" $ | nindent 8 }}
+      {{- $selector := $.Values.nodeSelector -}}{{- if $ml }}{{- $selector = $.Values.ml.nodeSelector -}}{{- end }}
+      {{- $tolerations := $.Values.tolerations -}}{{- if $ml }}{{- $tolerations = $.Values.ml.tolerations -}}{{- end }}
+      {{- include "photo.scheduling" (dict "root" $ "component" $component "nodeSelector" $selector "tolerations" $tolerations) | nindent 6 }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "photo.image" $w.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [/app/start.sh]
+          {{- if $encoder }}
+          args: [uvicorn, app.encoder:app, --host, 0.0.0.0, --port, "8090"]
+          {{- else if not $api }}
+          args: [python, -m, app.consumer]
+          {{- end }}
+          securityContext:
+            {{- include "photo.containerSecurity" $ | nindent 12 }}
+          resources:
+            {{- toYaml $w.resources | nindent 12 }}
+          {{- if not $encoder }}
+          envFrom:
+            - configMapRef: {name: {{ $.Release.Name }}-runtime}
+          {{- end }}
+          env:
+            {{- include "photo.secretEnv" $w.secret | nindent 12 }}
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - name: POD_UID
+              valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+            - name: POD_NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            - name: OTEL_SERVICE_NAME
+              value: {{ printf "photoplatform-%s" $component | quote }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ printf "k8s.cluster.name=%s,k8s.namespace.name=$(POD_NAMESPACE),k8s.pod.name=$(POD_NAME),k8s.deployment.name=%s-%s,service.version=%s,container.image.id=%s" $.Values.aws.clusterName $.Release.Name $component $.Values.release.commitSha $w.image.digest | quote }}
+            - name: OTEL_SDK_DISABLED
+              value: {{ not $.Values.telemetry.enabled | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://{{ $.Release.Name }}-otel:4318
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: http/protobuf
+            - name: OTEL_METRICS_EXPORTER
+              value: none
+            {{- if $api }}
+            - name: APP_EXPOSE_INSTANCE_ID
+              value: {{ $.Values.api.exposeInstanceId | quote }}
+            - name: APP_RELEASE_SHA
+              value: {{ $.Values.release.commitSha | quote }}
+            - name: DB_POOL_MAX
+              value: {{ $.Values.api.dbPoolMax | quote }}
+            - name: DB_POOL_MIN_IDLE
+              value: {{ $.Values.api.dbPoolMinIdle | quote }}
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ printf "%s%s" $.Values.api.javaToolOptions (ternary " -javaagent:/app/opentelemetry-javaagent.jar" "" $.Values.telemetry.enabled) | quote }}
+            - name: MANAGEMENT_SERVER_ADDRESS
+              value: 0.0.0.0
+            - name: SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE
+              value: {{ printf "%ds" (int $.Values.api.shutdownSeconds) | quote }}
+            {{- else if not $encoder }}
+            - name: WORKER_QUEUES
+              value: {{ ternary "media.embed" "media.process,media.delete" $ml | quote }}
+            - name: WORKER_SHUTDOWN_GRACE_SECONDS
+              value: {{ $.Values.mediaWorker.drainSeconds | quote }}
+            - name: OMP_NUM_THREADS
+              value: "1"
+            - name: OPENBLAS_NUM_THREADS
+              value: "1"
+            {{- end }}
+            {{- if $ml }}
+            - name: CLIP_MODEL_VERSION
+              value: {{ $.Values.config.modelVersion | quote }}
+            - name: TORCH_THREADS
+              value: "2"
+            - name: XDG_CACHE_HOME
+              value: /home/worker/.cache
+            - name: HF_HOME
+              value: /home/worker/.cache/huggingface
+            - name: TORCH_HOME
+              value: /home/worker/.cache/torch
+            {{- end }}
+          ports:
+            {{- if $api }}
+            - {name: http, containerPort: 8080}
+            - {name: metrics, containerPort: 9091}
+            {{- else if $encoder }}
+            - {name: http, containerPort: 8090}
+            {{- else }}
+            - {name: metrics, containerPort: 9100}
+            {{- end }}
+          {{- if $api }}
+          lifecycle:
+            preStop:
+              exec: {command: [sh, -c, {{ printf "sleep %d" (int $.Values.api.preStopSeconds) | quote }}]}
+          startupProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 6
+            failureThreshold: 2
+          {{- else if $encoder }}
+          startupProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: {{ $.Values.ml.startupFailureThreshold }}
+          livenessProbe:
+            httpGet: {path: /livez, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 2
+          {{- else }}
+          startupProbe:
+            exec: {command: [python, -m, app.health, --mode, live]}
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: {{ ternary $.Values.ml.startupFailureThreshold 60 $ml }}
+          livenessProbe:
+            exec: {command: [python, -m, app.health, --mode, live]}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec: {command: [python, -m, app.health, --mode, readiness]}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          {{- end }}
+          volumeMounts:
+            - {name: runtime-secrets, mountPath: /mnt/secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            {{- if $ml }}
+            - {name: model-cache, mountPath: /home/worker/.cache}
+            {{- end }}
+      volumes:
+        {{- include "photo.secretVolume" (dict "root" $ "component" $component "secret" $w.secret) | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+        {{- if $ml }}
+        - name: model-cache
+          emptyDir: {sizeLimit: {{ $.Values.ml.modelCacheSizeLimit }}}
+        {{- end }}
+{{- end }}

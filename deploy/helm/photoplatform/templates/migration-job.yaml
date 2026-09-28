@@ -1,0 +1,73 @@
+{{- if .Values.migration.enabled }}
+{{- $name := .Values.migration.name | default (printf "%s-migrate-%s" .Release.Name (.Values.migration.revision | default (.Values.release.commitSha | trunc 12))) -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-migrator
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "migrator") | nindent 4 }}
+automountServiceAccountToken: false
+{{- if eq .Values.secrets.provider "csi" }}
+---
+{{ include "photo.secretClass" (dict "root" . "component" "migrator" "secret" .Values.secrets.migrator) }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "migrator") | nindent 4 }}
+  annotations:
+    {{- include "photo.annotations" . | nindent 4 }}
+spec:
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo.labels" (dict "root" . "component" "migrator") | nindent 8 }}
+      annotations:
+        {{- include "photo.annotations" . | nindent 8 }}
+        photoplatform.io/image-digest: {{ .Values.images.api.digest | quote }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Release.Name }}-migrator
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "photo.security" . | nindent 8 }}
+      {{- if and .Values.nodeSelector (eq .Values.runtimeMode "aws") }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrator
+          image: {{ include "photo.image" .Values.images.api | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [/app/migrate.sh]
+          securityContext:
+            {{- include "photo.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          env:
+            {{- include "photo.secretEnv" .Values.secrets.migrator | nindent 12 }}
+            - name: POD_UID
+              valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+            - name: MIGRATOR_DATABASE_URL
+              value: {{ printf "jdbc:postgresql://%s:%v/%s?sslmode=%s%s" .Values.config.databaseHost .Values.config.databasePort .Values.config.databaseName .Values.config.databaseSslMode (ternary "&sslrootcert=/app/certs/global-bundle.pem" "" (eq .Values.runtimeMode "aws")) | quote }}
+            - name: AWS_REGION
+              value: {{ .Values.aws.region | quote }}
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ ternary "aws,eks" "kubernetes-local" (eq .Values.runtimeMode "aws") | quote }}
+            - name: APP_SEED_ENABLED
+              value: "false"
+          volumeMounts:
+            - {name: runtime-secrets, mountPath: /mnt/secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        {{- include "photo.secretVolume" (dict "root" . "component" "migrator" "secret" .Values.secrets.migrator) | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 256Mi}
+{{- end }}

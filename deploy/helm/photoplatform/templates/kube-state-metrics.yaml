@@ -1,0 +1,57 @@
+{{- if .Values.telemetry.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: {{ .Release.Name }}-kube-state-metrics}
+automountServiceAccountToken: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-kube-state-metrics
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "kube-state-metrics") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "kube-state-metrics") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo.labels" (dict "root" . "component" "kube-state-metrics") | nindent 8 }}
+      annotations:
+        {{- include "photo.annotations" . | nindent 8 }}
+        photoplatform.io/image-digest: {{ .Values.images.kubeStateMetrics.digest | quote }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ .Release.Name }}-kube-state-metrics
+      automountServiceAccountToken: true
+      securityContext:
+        {{- include "photo.security" . | nindent 8 }}
+      {{- if and .Values.nodeSelector (eq .Values.runtimeMode "aws") }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kube-state-metrics
+          image: {{ include "photo.image" .Values.images.kubeStateMetrics | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --namespaces={{ .Release.Namespace }}
+            - --resources=pods,deployments,horizontalpodautoscalers
+          ports: [{name: metrics, containerPort: 8080}, {name: health, containerPort: 8081}]
+          securityContext:
+            {{- include "photo.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.telemetry.resources | nindent 12 }}
+          env:
+            - name: POD_UID
+              valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+          livenessProbe: {httpGet: {path: /livez, port: metrics}, timeoutSeconds: 5}
+          readinessProbe: {httpGet: {path: /readyz, port: health}, timeoutSeconds: 5}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+      volumes: [{name: tmp, emptyDir: {sizeLimit: 64Mi}}]
+{{- end }}

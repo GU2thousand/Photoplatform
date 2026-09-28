@@ -1,0 +1,18 @@
+{{- $roles := dict "api" .Values.secrets.api "media-worker" .Values.secrets.mediaWorker -}}
+{{- if .Values.ml.enabled }}{{- $_ := set $roles "embedding-worker" .Values.secrets.embeddingWorker -}}{{- $_ := set $roles "encoder" .Values.secrets.encoder -}}{{- end -}}
+{{- if .Values.queueCollector.enabled }}{{- $_ := set $roles "queue-collector" .Values.secrets.queueCollector -}}{{- end -}}
+{{- range $component, $secret := $roles }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}
+  labels:
+    {{- include "photo.labels" (dict "root" $ "component" $component) | nindent 4 }}
+# Pod Identity injects its own projected token. Runtime roles cannot call K8s.
+automountServiceAccountToken: {{ eq $component "queue-collector" }}
+{{- if eq $.Values.secrets.provider "csi" }}
+---
+{{ include "photo.secretClass" (dict "root" $ "component" $component "secret" $secret) }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,39 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 350
+    spike_limit_mib: 50
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+exporters:
+  otlphttp:
+    endpoint: ${env:OTEL_EXPORTER_ENDPOINT}
+    tls:
+      insecure: false
+    timeout: 10s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 10s
+      max_elapsed_time: 60s
+    sending_queue:
+      enabled: true
+      queue_size: 1024
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+# One collector receives traces; one Prometheus independently scrapes each Pod's
+# declared metrics port once. No collector Prometheus receiver duplicates metrics.

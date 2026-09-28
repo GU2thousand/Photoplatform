@@ -1,0 +1,7 @@
+apiVersion: v2
+name: photoplatform
+description: Photoplatform EKS compute route with external PostgreSQL, RabbitMQ and S3
+type: application
+version: 0.1.0
+appVersion: "eks-v1"
+kubeVersion: ">=1.30.0-0"

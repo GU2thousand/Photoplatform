@@ -1,0 +1,11 @@
+environment: dev
+runtimeMode: aws
+api:
+  replicas: 2
+  exposeInstanceId: true
+  autoscaling: {enabled: false, minReplicas: 2, maxReplicas: 4}
+mediaWorker: {replicas: 1, maxReplicas: 4}
+ml: {enabled: false}
+capacity: {databaseConnectionBudget: 80}
+# Supply actual account/region/dependency/CSI ARN values from reviewed inventory,
+# and immutable digests from the exact successful Verify main SHA.

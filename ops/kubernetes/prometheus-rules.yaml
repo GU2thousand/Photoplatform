@@ -1,0 +1,78 @@
+groups:
+  - name: photoplatform-runtime
+    rules:
+      - alert: PhotoplatformApiErrors
+        expr: sum(rate(http_server_requests_seconds_count{component="api",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{component="api"}[5m])), 0.001) > 0.02
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "API 5xx ratio above initial 2% candidate threshold"}
+      - alert: PhotoplatformApiLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{component="api"}[5m]))) > 1
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "API p95 above initial 1 second candidate threshold"}
+      - alert: PhotoplatformDueJobsOld
+        expr: max(media_oldest_queued_job_age_seconds) > 300
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "A due durable job is older than 5 minutes"}
+      - alert: PhotoplatformOutboxBacklog
+        expr: max(media_outbox_pending) > 100
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Durable outbox remains above 100 pending rows"}
+      - alert: PhotoplatformOutboxOld
+        expr: max(media_outbox_oldest_age_seconds) > 300
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Oldest unpublished outbox row exceeds 5 minutes"}
+      - alert: PhotoplatformDeadLetterJobs
+        expr: max(media_dead_letter_jobs) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Dead letter jobs require review; do not scale normal workers for DLQ"}
+      - alert: PhotoplatformBrokerDisconnected
+        expr: worker_broker_connected == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "A worker reports a disconnected broker"}
+      - alert: PhotoplatformDbPoolWaiting
+        expr: max(hikaricp_connections_pending{component="api"}) > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "API requests are waiting for a database connection"}
+      - alert: PhotoplatformQueueMetricsUnavailable
+        expr: photoplatform_queue_collector_available == 0 or time() - photoplatform_queue_collector_last_success_timestamp_seconds > 90
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "MQ/Kubernetes sample unavailable or stale; queue depth must not be filled with zero"}
+      - alert: PhotoplatformMetricsTargetDown
+        expr: up{job="photoplatform-pods"} == 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "A discovered metrics target cannot be scraped"}
+      - alert: PhotoplatformPodOomKilled
+        expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        for: 1m
+        labels: {severity: critical}
+        annotations: {summary: "A namespace Pod container was OOM killed"}
+      - alert: PhotoplatformCrashLoop
+        expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} == 1
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "A namespace Pod is in CrashLoopBackOff"}
+      - alert: PhotoplatformPodPending
+        expr: kube_pod_status_phase{phase="Pending"} == 1
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "A namespace Pod remains Pending; inspect capacity, CSI and scheduling"}
+      - alert: PhotoplatformUnavailableReplicas
+        expr: kube_deployment_status_replicas_unavailable > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "A namespace Deployment has unavailable replicas"}
+      - alert: PhotoplatformModelVersionMismatch
+        expr: increase(encoder_model_version_mismatches_total[10m]) > 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: "Encoder observed a mismatched model version"}

@@ -1,0 +1,87 @@
+{{- if .Values.queueCollector.enabled }}
+{{- $targets := list (dict "deployment" (printf "%s-media-worker" .Release.Name) "selector" (printf "app.kubernetes.io/name=photoplatform,app.kubernetes.io/instance=%s,app.kubernetes.io/component=media-worker" .Release.Name) "queues" (list "media.process" "media.delete")) -}}
+{{- if .Values.ml.enabled }}{{- $targets = append $targets (dict "deployment" (printf "%s-embedding-worker" .Release.Name) "selector" (printf "app.kubernetes.io/name=photoplatform,app.kubernetes.io/instance=%s,app.kubernetes.io/component=embedding-worker" .Release.Name) "queues" (list "media.embed")) -}}{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-queue-collector
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "queue-collector") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "photo.selector" (dict "root" . "component" "queue-collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "photo.labels" (dict "root" . "component" "queue-collector") | nindent 8 }}
+      annotations:
+        {{- include "photo.annotations" . | nindent 8 }}
+        photoplatform.io/image-digest: {{ .Values.images.queueCollector.digest | quote }}
+        photoplatform.io/secret-version: {{ .Values.secrets.queueCollector.versionId | quote }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ .Release.Name }}-queue-collector
+      automountServiceAccountToken: true
+      securityContext:
+        {{- include "photo.security" . | nindent 8 }}
+      terminationGracePeriodSeconds: 30
+      {{- if and .Values.nodeSelector (eq .Values.runtimeMode "aws") }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: queue-collector
+          image: {{ include "photo.image" .Values.images.queueCollector | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            {{- include "photo.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.queueCollector.resources | nindent 12 }}
+          ports: [{name: metrics, containerPort: 9092}]
+          env:
+            {{- include "photo.secretEnv" .Values.secrets.queueCollector | nindent 12 }}
+            - name: POD_UID
+              valueFrom: {fieldRef: {fieldPath: metadata.uid}}
+            - name: CLUSTER_NAME
+              value: {{ .Values.aws.clusterName | quote }}
+            - name: NAMESPACE
+              valueFrom: {fieldRef: {fieldPath: metadata.namespace}}
+            - name: RUNTIME_MODE
+              value: {{ .Values.runtimeMode | quote }}
+            - name: RABBITMQ_HOST
+              value: {{ .Values.config.rabbitmqHost | quote }}
+            - name: RABBITMQ_MANAGEMENT_PORT
+              value: {{ .Values.queueCollector.managementPort | quote }}
+            - name: RABBITMQ_MANAGEMENT_SCHEME
+              value: {{ .Values.queueCollector.managementScheme | quote }}
+            - name: METRIC_INTERVAL_SECONDS
+              value: {{ .Values.queueCollector.intervalSeconds | quote }}
+            - name: TARGETS_JSON
+              value: {{ $targets | toJson | quote }}
+          startupProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /readyz, port: metrics}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - {name: runtime-secrets, mountPath: /mnt/secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        {{- include "photo.secretVolume" (dict "root" . "component" "queue-collector" "secret" .Values.secrets.queueCollector) | nindent 8 }}
+        - {name: tmp, emptyDir: {sizeLimit: 64Mi}}
+{{- end }}

@@ -1,0 +1,10 @@
+environment: prod
+runtimeMode: aws
+api:
+  replicas: 2
+  autoscaling: {enabled: true, minReplicas: 2, maxReplicas: 4}
+mediaWorker: {replicas: 2, maxReplicas: 4}
+ml: {enabled: false}
+capacity: {databaseConnectionBudget: 100}
+# A separate production account/cluster/namespace, Secrets, DB/MQ users and ALB
+# must be supplied. Production traffic cutover remains a separate release action.

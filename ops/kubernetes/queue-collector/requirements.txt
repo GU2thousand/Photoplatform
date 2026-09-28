@@ -1,0 +1,7 @@
+# Pinned to the repository worker's locked HTTP/metrics runtime.
+requests==2.34.2
+prometheus-client==0.26.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+idna==3.20
+urllib3==2.8.0
