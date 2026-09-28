@@ -19,6 +19,7 @@ from opentelemetry.propagate import extract
 from .imaging import InvalidImage, process_image
 from .telemetry import configure
 from .config import database_parameters, storage_client
+from .test_hooks import validate_test_hooks, barrier
 
 log = logging.getLogger(__name__)
 tracer = configure("media-worker")
@@ -181,6 +182,7 @@ def fault_after_s3(job):
 
 class Worker:
     def __init__(self):
+        validate_test_hooks()
         self.s3 = storage_client()
         self.bucket = os.environ["STORAGE_BUCKET"]
         self.encoder = None
@@ -240,6 +242,7 @@ class Worker:
                     job["_lease"] = lease
                     lease.start()
                     try:
+                        barrier(job, "before_write", assert_owned)
                         with DURATION.labels(job["job_type"]).time():
                             if job["job_type"] == "MEDIA_PROCESS": outcome = self.process(conn, job)
                             elif job["job_type"] == "EMBED": outcome = self.embed(conn, job)
@@ -314,6 +317,7 @@ class Worker:
                     STORAGE_ERRORS.labels("put").inc()
                     raise
             rows.append((image["id"],job["asset_version"],variant.name,key,variant.content_type,len(variant.data),variant.width,variant.height,variant.sha256))
+        barrier(job, "after_write", assert_owned, [object_key(row[3]) for row in rows])
         fault_after_s3(job)
         with conn.transaction():
             current = conn.execute("SELECT deleted_at,asset_version FROM image_assets WHERE id=%s FOR UPDATE", (image["id"],)).fetchone()

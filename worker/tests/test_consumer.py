@@ -27,6 +27,7 @@ class ConsumerLifecycleTests(unittest.TestCase):
         self.connection = MagicMock()
         self.connection.is_open = True
         self.consumer.connection = self.connection
+        self.addCleanup(self.consumer.shutdown_complete.set)
 
     def deliver(self, tag=1):
         from unittest.mock import MagicMock
@@ -91,6 +92,37 @@ class ConsumerLifecycleTests(unittest.TestCase):
         self.assertFalse(future.cancelled())
         self.channel.basic_ack.assert_not_called()
         future.set_result(True)
+
+    def test_shutdown_budget_starts_at_signal_and_is_never_reset(self):
+        from unittest.mock import patch
+        with patch("app.consumer.time.monotonic", side_effect=[10, 80]), \
+             patch.dict("os.environ", {"WORKER_SHUTDOWN_GRACE_SECONDS": "100"}):
+            self.consumer.request_stop()
+            self.consumer.request_stop()
+        self.assertEqual(self.consumer.shutdown_deadline, 110)
+
+    def test_broker_cancel_wait_consumes_existing_drain_budget(self):
+        from concurrent.futures import Future
+        from unittest.mock import patch
+        future = Future()
+        future.set_running_or_notify_cancel()
+        self.consumer.futures.add(future)
+        self.consumer.shutdown_deadline = 100
+        # Cancellation used 65 seconds before entering drain. Only35 remain.
+        with patch("app.consumer.time.monotonic", side_effect=[65, 101, 101]):
+            self.assertFalse(self.consumer.drain())
+        self.connection.process_data_events.assert_called_once_with(time_limit=.5)
+
+    def test_deadline_watchdog_bounds_blocked_broker_rpc_without_ack(self):
+        from unittest.mock import patch
+        self.consumer.shutdown_deadline = 100
+        with patch("app.consumer.time.monotonic", return_value=65), \
+             patch.object(self.consumer.shutdown_complete, "wait", return_value=False) as wait, \
+             patch("app.consumer.os._exit") as exit_process:
+            self.consumer.guard_shutdown_deadline()
+        wait.assert_called_once_with(35)
+        exit_process.assert_called_once_with(0)
+        self.channel.basic_ack.assert_not_called()
 
     def test_per_consumer_qos_supports_quorum_queues_and_clean_term(self):
         from unittest.mock import patch

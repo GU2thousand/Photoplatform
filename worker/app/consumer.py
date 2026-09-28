@@ -50,6 +50,24 @@ class Consumer:
         self.futures_lock = threading.Lock()
         self.connection = None
         self.gc_thread = None
+        self.running = False
+        self.shutdown_deadline = None
+        self.shutdown_complete = threading.Event()
+        self.shutdown_watchdog = None
+
+    def guard_shutdown_deadline(self):
+        remaining = max(0, self.shutdown_deadline - time.monotonic())
+        if not self.shutdown_complete.wait(remaining):
+            # Pika cancellation/close RPCs can block across broker heartbeat
+            # failure. One absolute deadline covers RPCs and active-job drain.
+            log.warning("Total shutdown grace expired; unacknowledged work will recover")
+            os._exit(0)
+
+    def arm_shutdown_watchdog(self):
+        if self.running and self.shutdown_watchdog is None:
+            self.shutdown_watchdog = threading.Thread(target=self.guard_shutdown_deadline,
+                name="shutdown-deadline", daemon=True)
+            self.shutdown_watchdog.start()
 
     def garbage_loop(self):
         interval = max(10, int(os.getenv("WORKER_GC_INTERVAL_SECONDS", "60")))
@@ -72,7 +90,10 @@ class Consumer:
 
     def request_stop(self, *_):
         # Signal handlers never call Pika: broker operations stay on the I/O thread.
+        if self.shutdown_deadline is None:
+            self.shutdown_deadline = time.monotonic() + max(0, int(os.getenv("WORKER_SHUTDOWN_GRACE_SECONDS", "100")))
         self.stop.set()
+        self.arm_shutdown_watchdog()
 
     def consume(self, channel, method, properties, body):
         if self.stop.is_set():
@@ -114,7 +135,8 @@ class Consumer:
 
     def drain(self):
         """Stop receiving, keep heartbeats alive, and give the in-flight job time."""
-        deadline = time.monotonic() + int(os.getenv("WORKER_SHUTDOWN_GRACE_SECONDS", "100"))
+        deadline = self.shutdown_deadline if self.shutdown_deadline is not None else (
+            time.monotonic() + max(0, int(os.getenv("WORKER_SHUTDOWN_GRACE_SECONDS", "100"))))
         self.cancel_pending()
         while self.has_work() and time.monotonic() < deadline:
             mark_alive()
@@ -125,12 +147,15 @@ class Consumer:
                     self.connection = None
             else:
                 time.sleep(.1)
-        if self.connection and self.connection.is_open:
+        if self.connection and self.connection.is_open and time.monotonic() < deadline:
             self.connection.process_data_events(time_limit=.1)
         return not self.has_work()
 
     def run(self):
         attempt = 0
+        self.running = True
+        if self.stop.is_set():
+            self.arm_shutdown_watchdog()
         mark_disconnected()
         mark_alive()
         self.gc_thread = threading.Thread(target=self.garbage_loop, name="attempt-gc", daemon=True)
@@ -197,7 +222,7 @@ class Consumer:
                     self.stop.wait(reconnect_delay(attempt))
                     attempt += 1
         finally:
-            self.stop.set()
+            self.request_stop()
             mark_disconnected()
             try:
                 drained = self.drain()
@@ -215,6 +240,8 @@ class Consumer:
                 # process loss; it must not exhaust the workload's drain budget.
                 self.gc_thread.join(timeout=1)
             mark_stopped()
+            self.shutdown_complete.set()
+            self.running = False
             if not drained:
                 # ThreadPoolExecutor threads otherwise keep Python alive beyond ECS's
                 # stop timeout. Durable lease + outbox recover this unacknowledged job.
