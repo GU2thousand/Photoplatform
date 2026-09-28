@@ -1,7 +1,10 @@
 {{- if .Values.network.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-default-deny}
+metadata:
+  name: {{ .Release.Name }}-default-deny
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
@@ -9,7 +12,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-dns-and-aws}
+metadata:
+  name: {{ .Release.Name }}-dns-and-aws
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
@@ -31,7 +37,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-api-ingress}
+metadata:
+  name: {{ .Release.Name }}-api-ingress
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -46,7 +55,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-managed-dependencies}
+metadata:
+  name: {{ .Release.Name }}-managed-dependencies
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
@@ -77,7 +89,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-encoder}
+metadata:
+  name: {{ .Release.Name }}-encoder
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -92,7 +107,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-api-encoder}
+metadata:
+  name: {{ .Release.Name }}-api-encoder
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -109,7 +127,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-metrics}
+metadata:
+  name: {{ .Release.Name }}-metrics
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
@@ -125,7 +146,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-telemetry-internal}
+metadata:
+  name: {{ .Release.Name }}-telemetry-internal
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels: {app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/name: photoplatform}
@@ -138,7 +162,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-otel-ingress}
+metadata:
+  name: {{ .Release.Name }}-otel-ingress
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -154,7 +181,10 @@ spec:
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: {{ .Release.Name }}-collector-kubernetes}
+metadata:
+  name: {{ .Release.Name }}-collector-kubernetes
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "network") | nindent 4 }}
 spec:
   podSelector:
     matchLabels:

@@ -93,6 +93,9 @@ class ChartTests(unittest.TestCase):
 
     def test_pod_contracts_and_private_services(self):
         docs = self.docs(fixture("prod", all_features=True))
+        for doc in docs:
+            self.assertEqual(doc["metadata"]["labels"]["app.kubernetes.io/name"], "photoplatform")
+            self.assertEqual(doc["metadata"]["labels"]["app.kubernetes.io/instance"], "photoplatform")
         deployments = [doc for doc in docs if doc["kind"] == "Deployment"]
         self.assertEqual(len(deployments), 8)  # API/media/encoder/embedding/collector/Prometheus/OTEL/state metrics
         for deployment in deployments:

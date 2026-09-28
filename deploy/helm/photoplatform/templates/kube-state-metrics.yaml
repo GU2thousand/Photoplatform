@@ -1,7 +1,10 @@
 {{- if .Values.telemetry.enabled }}
 apiVersion: v1
 kind: ServiceAccount
-metadata: {name: {{ .Release.Name }}-kube-state-metrics}
+metadata:
+  name: {{ .Release.Name }}-kube-state-metrics
+  labels:
+    {{- include "photo.labels" (dict "root" . "component" "kube-state-metrics") | nindent 4 }}
 automountServiceAccountToken: true
 ---
 apiVersion: apps/v1

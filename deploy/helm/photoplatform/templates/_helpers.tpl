@@ -239,6 +239,8 @@ topologySpreadConstraints:
 {{- end -}}
 {{- if or (not $v.config.databaseHost) (not $v.config.rabbitmqHost) (not $v.config.storageBucket) (not $v.config.corsAllowedOrigins) }}{{ fail "database, broker, bucket and explicit CORS origin required" }}{{ end -}}
 {{- if and $v.ml.enabled (not (has "ENCODER_TOKEN" $v.secrets.api.keys)) }}{{ fail "ML requires API ENCODER_TOKEN mounted secret" }}{{ end -}}
+{{- if and $v.ml.enabled (not (has "ENCODER_TOKEN" $v.secrets.encoder.keys)) }}{{ fail "encoder requires ENCODER_TOKEN mounted secret" }}{{ end -}}
+{{- if and $v.queueCollector.enabled (or (not (has "RABBITMQ_USER" $v.secrets.queueCollector.keys)) (not (has "RABBITMQ_PASSWORD" $v.secrets.queueCollector.keys))) }}{{ fail "collector requires readonly MQ user/password mounted Secret" }}{{ end -}}
 {{- if and $v.ml.enabled (ne $v.config.modelVersion "clip-vit-b32-openai-v1") }}{{ fail "ML requires the audited fixed CLIP model version" }}{{ end -}}
 {{- range $key := list "SPRING_DATASOURCE_USERNAME" "SPRING_DATASOURCE_PASSWORD" "APP_JWT_SECRET" "RABBITMQ_USER" "RABBITMQ_PASSWORD" }}
   {{- if not (has $key $v.secrets.api.keys) }}{{ fail (printf "API required mounted secret %s missing" $key) }}{{ end -}}
