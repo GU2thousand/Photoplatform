@@ -262,7 +262,7 @@ class ReportAndSafetyTests(unittest.TestCase):
         def collect(path, report):
             self.assertEqual(Path(path).parent, Path(directory))
             reports.append(copy.deepcopy(report) | {"executionScope": "synthetic_unit_test"})
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, ENV), patch.object(eks_failure, "eks_guard", return_value=(Mock(), control, {})), \
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, ENV), patch.object(eks_failure, "eks_guard", return_value=(Mock(), control, {})) as guard, \
                 patch.object(eks_failure, "CloudAPI", return_value=api), patch.object(eks_failure, "running_job", return_value={"attempt": 1, "currentAttemptAgeSeconds": 310}), \
                 patch.object(eks_failure, "write_report", side_effect=collect), \
                 patch.object(eks_failure, "kubectl") as run, \
@@ -275,6 +275,7 @@ class ReportAndSafetyTests(unittest.TestCase):
         self.assertFalse(reports[-1]["faultIssued"])
         self.assertEqual(reports[-1]["unsupportedScope"], "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED")
         run.assert_not_called()
+        guard.assert_not_called()
         api.wait.assert_not_called()
         api.state.assert_not_called()
 
