@@ -96,12 +96,14 @@ resource "aws_iam_role_policy" "github_deploy" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["eks:DescribeCluster", "eks:ListAddons"], Resource = local.cluster_arn },
     { Effect = "Allow", Action = ["eks:DescribeAddon"], Resource = "arn:${local.partition}:eks:${var.region}:${var.expected_account_id}:addon/${local.name}/*" },
+    # ELBv2 describes have no resource-level support; constrain read-only discovery to this region.
+    { Effect = "Allow", Action = ["elasticloadbalancing:DescribeLoadBalancers", "elasticloadbalancing:DescribeTags"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.region } } },
     { Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*" },
     { Effect = "Allow", Action = ["ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:DescribeImages", "ecr:DescribeRepositories"], Resource = tolist(var.ecr_repository_arns) },
     { Effect = "Allow", Action = ["s3:ListBucket", "s3:GetBucketTagging", "s3:GetBucketVersioning", "s3:GetBucketPublicAccessBlock", "s3:GetEncryptionConfiguration", "s3:GetLifecycleConfiguration"], Resource = var.media_bucket_arn },
     { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.frontend_bucket_arn },
     { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.frontend_bucket_arn}/*" },
-    { Effect = "Allow", Action = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"], Resource = var.frontend_distribution_arn }
+    { Effect = "Allow", Action = ["cloudfront:CreateInvalidation", "cloudfront:GetInvalidation", "cloudfront:GetDistribution"], Resource = var.frontend_distribution_arn }
   ] })
 }
 resource "aws_eks_access_entry" "admin" {
