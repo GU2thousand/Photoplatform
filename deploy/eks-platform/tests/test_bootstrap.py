@@ -91,6 +91,63 @@ class PlatformBootstrapSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "roles.rbac"):
                 platform.verify_release_rbac({}, "photoplatform-dev")
 
+    def test_namespace_identity_reader_can_get_exactly_two_namespace_objects(self):
+        for namespace in ["photoplatform-dev", "photoplatform-prod"]:
+            documents = platform.additional_rbac(namespace)
+            resources = json.loads(documents["namespace-read-rbac.json"])["items"]
+            role, binding = resources
+            self.assertEqual(role["kind"], "ClusterRole")
+            self.assertEqual(role["rules"], [{"apiGroups": [""], "resources": ["namespaces"],
+                "resourceNames": [namespace, "kube-system"], "verbs": ["get"]}])
+            self.assertEqual(binding["subjects"], [{"kind": "Group", "name": "photoplatform-deployers",
+                "apiGroup": "rbac.authorization.k8s.io"}])
+            self.assertEqual(binding["roleRef"]["name"], role["metadata"]["name"])
+        with self.assertRaises(ValueError):
+            platform.additional_rbac("default")
+
+    def test_workload_roles_are_namespace_scoped_and_read_only_for_fixed_serviceaccounts(self):
+        resources = json.loads(platform.additional_rbac("photoplatform-dev")["observability-rbac.json"])["items"]
+        roles = {resource["metadata"]["name"]: resource for resource in resources if resource["kind"] == "Role"}
+        bindings = [resource for resource in resources if resource["kind"] == "RoleBinding"]
+        expected = {
+            "photoplatform-queue-collector": {("", "pods", "list")},
+            "photoplatform-prometheus": {("", "pods", verb) for verb in ["get", "list", "watch"]},
+            "photoplatform-kube-state-metrics": {("", "pods", verb) for verb in ["list", "watch"]}
+                | {("apps", "deployments", verb) for verb in ["list", "watch"]}
+                | {("autoscaling", "horizontalpodautoscalers", verb) for verb in ["list", "watch"]},
+        }
+        self.assertEqual(len(resources), 6)
+        self.assertEqual(len(bindings), 3)
+        for binding in bindings:
+            self.assertEqual(binding["metadata"]["namespace"], "photoplatform-dev")
+            self.assertEqual(binding["roleRef"]["kind"], "Role")
+            self.assertEqual(len(binding["subjects"]), 1)
+            subject = binding["subjects"][0]
+            self.assertEqual(subject["kind"], "ServiceAccount")
+            self.assertEqual(subject["namespace"], "photoplatform-dev")
+            role = roles[binding["roleRef"]["name"]]
+            self.assertEqual(role["metadata"]["namespace"], "photoplatform-dev")
+            actual = {(group, resource, verb) for rule in role["rules"]
+                for group in rule["apiGroups"] for resource in rule["resources"] for verb in rule["verbs"]}
+            self.assertEqual(actual, expected[subject["name"]])
+
+    def test_permission_verification_detects_preexisting_broad_namespace_reads(self):
+        def response(command, **kwargs):
+            index = command.index("can-i")
+            verb, resource = command[index + 1:index + 3]
+            allowed = (verb == "create" and resource in ["deployments.apps", "jobs.batch"])
+            allowed |= verb == "get" and resource in ["namespaces/photoplatform-dev", "namespaces/kube-system", "namespaces/default"]
+            return argparse.Namespace(stdout="yes\n" if allowed else "no\n", returncode=0 if allowed else 1)
+        with patch.object(platform.subprocess, "run", side_effect=response):
+            with self.assertRaisesRegex(ValueError, "namespaces/default"):
+                platform.verify_release_rbac({}, "photoplatform-dev")
+
+    def test_observability_verification_rejects_unexpected_secret_access(self):
+        permissive = argparse.Namespace(stdout="yes\n", returncode=0)
+        with patch.object(platform.subprocess, "run", return_value=permissive):
+            with self.assertRaisesRegex(ValueError, "secrets"):
+                platform.verify_observability_rbac({}, "photoplatform-dev")
+
 
 if __name__ == "__main__":
     unittest.main()

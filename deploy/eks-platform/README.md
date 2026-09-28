@@ -4,7 +4,8 @@ This installs platform prerequisites into an **already provisioned** dedicated
 Photoplatform EKS cluster. Terraform owns the cluster, managed EC2 AL2023 node
 groups, network, managed add-ons, IAM roles, Pod Identity associations, access
 entries and security groups. This bootstrap owns Helm platform releases and the
-namespace release RBAC. Application Helm releases are a separate step.
+namespace release and observability RBAC plus a narrowly scoped namespace
+identity reader. Application Helm releases are a separate step.
 
 The checked-in `versions.json` pins Kubernetes 1.36, AWS Load Balancer Controller
 chart/application 3.5.0, ASCP 3.1.2 with its bundled Secrets Store CSI Driver 1.6.0,
@@ -52,9 +53,11 @@ This explicitly:
 
 1. Applies the kube-system connectivity NetworkPolicy, namespace with restricted
    Pod Security Admission at v1.36, and the LBC ServiceAccount.
-2. Applies the namespace Role and RoleBinding for `photoplatform-deployers` and
-   verifies allowed/denied permissions using an impersonated group. The platform
-   operator must have the Kubernetes impersonation privilege for these checks.
+2. Applies the namespace release Role/RoleBinding, two-namespace identity reader
+   and three namespace observability Role/RoleBindings. It verifies allowed and
+   denied permissions using the publisher group and each workload ServiceAccount.
+   The platform operator must have user/group/ServiceAccount impersonation
+   privileges for these checks.
 3. Applies CRDs from the verified chart packages, including dependencies, so
    upgrades do not rely on Helm's install-only CRD behavior or a mutable URL.
 4. Installs/updates LBC, ASCP/CSI and metrics-server with `--atomic --wait` and
@@ -124,7 +127,30 @@ only the resource types required by the app Helm release in
 for release metadata; cloud credentials remain CSI files. Publish identities
 can change namespace workloads and must be protected accordingly. This Role
 does not permit RBAC creation, `bind`, `escalate`, cluster resources, nodes,
-direct Pod creation/exec, or access to kube-system secrets. Namespace failure
+direct Pod creation/exec, or access to kube-system secrets. A separate,
+bootstrap-owned ClusterRole/ClusterRoleBinding grants this group only `get` on
+the **two exact Namespace objects** `[target namespace, kube-system]`, permitting
+the release guard's label/UID checks. It grants no namespace list/watch, other
+namespace reads, cluster resource writes or additional cluster resource access.
+The generated files are `namespace-read-rbac.json` and `observability-rbac.json`.
+
+Bootstrap also provisions these namespace Roles/RoleBindings for the fixed
+chart-owned ServiceAccounts, without granting them Secret access or API writes:
+
+| ServiceAccount | Read permissions in the target namespace |
+| --- | --- |
+| `photoplatform-queue-collector` | Pod `list` |
+| `photoplatform-prometheus` | Pod `get`, `list`, `watch` |
+| `photoplatform-kube-state-metrics` | Pod, Deployment and HPA `list`, `watch` |
+
+The application chart owns those ServiceAccounts and requires
+`rbacProvisioned: true` before the optional components are enabled; it must not
+render Roles or RoleBindings. Bindings can be provisioned before their
+ServiceAccounts exist. Bootstrap checks their permissions through impersonation,
+which [maps the ServiceAccount username and groups](https://github.com/kubernetes/kubernetes/blob/v1.36.0/staging/src/k8s.io/apiserver/pkg/endpoints/filters/impersonation/impersonation.go)
+without issuing a ServiceAccount token or creating application identities.
+
+Namespace failure
 injection that requires deleting/executing Pods and node-drain experiments must
 use a separately authorized operator identity. Do not give the app publisher
 cluster-admin to run acceptance experiments.

@@ -23,6 +23,16 @@ ROOT = Path(__file__).resolve().parent
 REPO_ROOT = ROOT.parents[1]
 GROUP = "photoplatform-deployers"
 NAMESPACES = {"dev": "photoplatform-dev", "prod": "photoplatform-prod"}
+OBSERVABILITY_RULES = {
+    "photoplatform-queue-collector": [
+        {"apiGroups": [""], "resources": ["pods"], "verbs": ["list"]}],
+    "photoplatform-prometheus": [
+        {"apiGroups": [""], "resources": ["pods"], "verbs": ["get", "list", "watch"]}],
+    "photoplatform-kube-state-metrics": [
+        {"apiGroups": [""], "resources": ["pods"], "verbs": ["list", "watch"]},
+        {"apiGroups": ["apps"], "resources": ["deployments"], "verbs": ["list", "watch"]},
+        {"apiGroups": ["autoscaling"], "resources": ["horizontalpodautoscalers"], "verbs": ["list", "watch"]}],
+}
 
 
 def run(command: list[str], *, env: dict[str, str] | None = None,
@@ -160,13 +170,41 @@ def namespace_manifest(args: argparse.Namespace, versions: dict) -> str:
             "pod-security.kubernetes.io/warn": "restricted"}}}, indent=2) + "\n"
 
 
+def additional_rbac(namespace: str) -> dict[str, str]:
+    """Bootstrap owns these identities; the application chart owns no RBAC."""
+    if namespace not in NAMESPACES.values():
+        raise ValueError("RBAC can be provisioned only for the fixed application namespaces")
+    name = namespace + "-namespace-reader"
+    namespace_read = {"apiVersion": "v1", "kind": "List", "items": [
+        {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole",
+         "metadata": {"name": name}, "rules": [
+             {"apiGroups": [""], "resources": ["namespaces"],
+              "resourceNames": [namespace, "kube-system"], "verbs": ["get"]}]},
+        {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRoleBinding",
+         "metadata": {"name": name},
+         "subjects": [{"kind": "Group", "name": GROUP, "apiGroup": "rbac.authorization.k8s.io"}],
+         "roleRef": {"kind": "ClusterRole", "name": name, "apiGroup": "rbac.authorization.k8s.io"}}]}
+    observations = []
+    for service_account, rules in OBSERVABILITY_RULES.items():
+        role_name = service_account + "-read"
+        observations += [
+            {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "Role",
+             "metadata": {"name": role_name, "namespace": namespace}, "rules": rules},
+            {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "RoleBinding",
+             "metadata": {"name": role_name, "namespace": namespace},
+             "subjects": [{"kind": "ServiceAccount", "name": service_account, "namespace": namespace}],
+             "roleRef": {"kind": "Role", "name": role_name, "apiGroup": "rbac.authorization.k8s.io"}}]
+    return {"namespace-read-rbac.json": json.dumps(namespace_read, indent=2) + "\n",
+            "observability-rbac.json": json.dumps({"apiVersion": "v1", "kind": "List", "items": observations}, indent=2) + "\n"}
+
+
 def static_manifests(args: argparse.Namespace, versions: dict) -> dict[str, str]:
     return {"kube-system-network-policy.yaml": (ROOT / "kube-system-network-policy.yaml").read_text(),
             "namespace.yaml": namespace_manifest(args, versions),
             "aws-load-balancer-controller-serviceaccount.yaml":
                 (ROOT / "aws-load-balancer-controller-serviceaccount.yaml").read_text(),
             "release-rbac.yaml": (ROOT / "release-rbac.yaml").read_text().replace(
-                "__NAMESPACE__", NAMESPACES[args.environment])}
+                "__NAMESPACE__", NAMESPACES[args.environment])} | additional_rbac(NAMESPACES[args.environment])
 
 
 def verify_release_rbac(env: dict[str, str], namespace: str) -> None:
@@ -177,7 +215,17 @@ def verify_release_rbac(env: dict[str, str], namespace: str) -> None:
               ("create", "rolebindings.rbac.authorization.k8s.io", namespace, "no"),
               ("create", "clusterroles.rbac.authorization.k8s.io", None, "no"),
               ("get", "secrets", "kube-system", "no"),
-              ("create", "pods", namespace, "no")]
+              ("create", "pods", namespace, "no"),
+              ("get", "namespaces/" + namespace, None, "yes"),
+              ("get", "namespaces/kube-system", None, "yes"),
+              ("get", "namespaces/default", None, "no"),
+              ("list", "namespaces", None, "no"),
+              ("get", "nodes", None, "no")]
+    verify_permissions(env, impersonate, checks, "Deployment")
+
+
+def verify_permissions(env: dict[str, str], impersonate: list[str],
+                       checks: list[tuple[str, str, str | None, str]], label: str) -> None:
     for verb, resource, scope, expected in checks:
         command = ["kubectl", *impersonate, "auth", "can-i", verb, resource]
         if scope:
@@ -185,7 +233,28 @@ def verify_release_rbac(env: dict[str, str], namespace: str) -> None:
         # kubectl returns status 1 for a correct negative permission test.
         result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=30)
         if result.stdout.strip() != expected or result.returncode not in (0, 1):
-            raise ValueError(f"Deployment RBAC check failed: {verb} {resource} in {scope or 'cluster'}")
+            raise ValueError(f"{label} RBAC check failed: {verb} {resource} in {scope or 'cluster'}")
+
+
+def verify_observability_rbac(env: dict[str, str], namespace: str) -> None:
+    for service_account, rules in OBSERVABILITY_RULES.items():
+        checks = []
+        for rule in rules:
+            suffix = "." + rule["apiGroups"][0] if rule["apiGroups"][0] else ""
+            for resource in rule["resources"]:
+                checks += [(verb, resource + suffix, namespace, "yes") for verb in rule["verbs"]]
+        checks += [("get", "secrets", namespace, "no"),
+                   ("create", "roles.rbac.authorization.k8s.io", namespace, "no"),
+                   ("patch", "deployments.apps", namespace, "no"),
+                   ("list", "pods", "kube-system", "no")]
+        if service_account != "photoplatform-prometheus":
+            checks.append(("get", "pods", namespace, "no"))
+        if service_account == "photoplatform-queue-collector":
+            checks.append(("watch", "pods", namespace, "no"))
+        if service_account != "photoplatform-kube-state-metrics":
+            checks += [("list", "deployments.apps", namespace, "no"),
+                       ("list", "horizontalpodautoscalers.autoscaling", namespace, "no")]
+        verify_permissions(env, [f"--as=system:serviceaccount:{namespace}:{service_account}"], checks, service_account)
 
 
 def bootstrap(args: argparse.Namespace) -> None:
@@ -222,6 +291,7 @@ def bootstrap(args: argparse.Namespace) -> None:
                 for content in manifests.values():
                     run(["kubectl", "apply", "--server-side", "--field-manager=photoplatform-platform", "-f", "-"], env=env, stdin=content)
                 verify_release_rbac(env, NAMESPACES[args.environment])
+                verify_observability_rbac(env, NAMESPACES[args.environment])
             for name, component in versions["components"].items():
                 chart = download_chart(component, tempdir)
                 settings = chart_settings(name, args)
