@@ -52,7 +52,7 @@ docker compose up -d --scale worker=4
 
 Open [localhost:5173](http://localhost:5173); the API is at [localhost:8081](http://localhost:8081). Host ports bind to loopback. The default demo seeds `avery@generatecloud.local / creator123` and `admin@generatecloud.local / admin123`; seeding is disabled by the application and production Blueprint defaults. Keep this demo stack local. `docker compose stop` preserves volumes; `docker compose down -v` deletes them.
 
-PostgreSQL 16 includes pgvector even when ML services are disabled. Existing local RabbitMQ 4.1 volumes keep their default image; `RABBITMQ_IMAGE` can select a fresh test broker, and CI uses RabbitMQ 4.3. Do not jump an existing broker data volume across unsupported upgrade paths. MinIO uses a pinned Quay release; RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
+PostgreSQL 16 includes pgvector even when ML services are disabled. Existing local RabbitMQ 4.1 volumes keep their default image; `RABBITMQ_IMAGE` can select a fresh test broker, and CI uses RabbitMQ 4.3. Do not jump an existing broker data volume across unsupported upgrade paths. Local S3 storage uses a pinned PGSTY SILO release, a maintained MinIO-compatible fork that preserves the MinIO S3 API, `MINIO_*` settings, and `/minio/*` health routes. RabbitMQ and the lightweight media worker start in the default stack. The optional search profile downloads substantially larger ML dependencies and model weights:
 
 ```bash
 SEMANTIC_SEARCH_ENABLED=true docker compose --profile search up -d --build
@@ -167,7 +167,7 @@ docker compose up -d --scale worker=4
 SEMANTIC_SEARCH_ENABLED=true docker compose --profile search up -d --build
 ```
 
-前端 [localhost:5173](http://localhost:5173)，API [localhost:8081](http://localhost:8081)。默认本机演示账号为 `avery@generatecloud.local / creator123`，管理员为 `admin@generatecloud.local / admin123`。端口仅绑定本机；不要把演示配置暴露到公网。`docker compose stop` 保留数据，`docker compose down -v` 删除数据卷。搜索首次启动需要下载较大的依赖和模型，等待 encoder 健康检查通过。
+前端 [localhost:5173](http://localhost:5173)，API [localhost:8081](http://localhost:8081)。默认本机演示账号为 `avery@generatecloud.local / creator123`，管理员为 `admin@generatecloud.local / admin123`。端口仅绑定本机；不要把演示配置暴露到公网。`docker compose stop` 保留数据，`docker compose down -v` 删除数据卷。本机 S3 服务使用固定版本的 PGSTY SILO（维护中的 MinIO 兼容分支），保留 MinIO S3 API、`MINIO_*` 配置和 `/minio/*` 健康检查路由。搜索首次启动需要下载较大的依赖和模型，等待 encoder 健康检查通过。
 
 ## 上传架构与处理流程
 
