@@ -65,6 +65,7 @@ class Runtime:
             "github_run_id": os.getenv("GITHUB_RUN_ID"), "github_run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
             "cluster": self.cluster, "namespace": NAMESPACE, "node_image": NODE_IMAGE,
             "images": {}, "cases": [], "status": "RUNNING",
+            "kubernetes_case_totals": {"denominator": 9, "passed": 0, "failed": 0, "skipped": 0, "not_run": 9},
         }
         self.save("manifest", self.manifest)
 
@@ -185,7 +186,7 @@ class Runtime:
         adapters[str(properties.relative_to(backend))] = "independent liveness endpoint and graceful stop only"
         hashes = {filename: hashlib.sha256((backend / filename).read_bytes()).hexdigest() for filename in adapters}
         adapter_sha = hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
-        self.manifest["baseline_compatibility_image"] = {"source_sha": BASELINE_SOURCE_SHA,
+        self.manifest["baseline_compatibility_image"] = {"source_sha": BASELINE_SOURCE_SHA, "packaging_source_sha": self.sha,
             "adapter_sha256": adapter_sha, "adapter_files": adapters, "adapter_file_sha256": hashes,
             "scope": "pinned baseline business code with explicit probe/packaging adapter; not untouched historical image"}
         self.save("manifest", self.manifest)
@@ -195,7 +196,7 @@ class Runtime:
         if self.cluster in self.command("kind", "get", "clusters").splitlines():
             raise ValueError("Disposable cluster name is already in use")
         config = self.work / "kind.yaml"
-        config.write_text("kind: Cluster\napiVersion: kind.x-k8s.io/v1alpha4\nnodes:\n- role: control-plane\n")
+        config.write_text("kind: Cluster\napiVersion: kind.x-k8s.io/v1alpha4\nnodes:\n- role: control-plane\n- role: worker\n- role: worker\n")
         self.cluster_created = True
         self.stream("kind-create", "kind", "create", "cluster", "--name", self.cluster,
                     "--kubeconfig", str(self.kubeconfig), "--config", str(config), "--image", NODE_IMAGE, "--wait", "180s", timeout=600)
@@ -206,6 +207,9 @@ class Runtime:
             self.command("docker", "exec", node, "mkdir", "-p", directory)
             self.command("docker", "exec", "-i", node, "cp", "/dev/stdin", directory + "/hosts.toml",
                          input=f'[host."http://{self.registry}:5000"]\n')
+        # Dependencies have explicit tolerations; application replicas must stay
+        # on the two worker nodes so a whole worker-node drain is meaningful.
+        self.k("taint", "nodes", self.cluster + "-control-plane", "node-role.kubernetes.io/control-plane:NoSchedule", "--overwrite")
         self.apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": NAMESPACE,
                     "labels": {"app.kubernetes.io/part-of": "photoplatform", "photoplatform.io/environment": "dev", "photoplatform.io/disposable": "true"}}})
         self.manifest["kube_system_uid"] = json.loads(self.k("get", "namespace", "kube-system", "-o", "json"))["metadata"]["uid"]
@@ -230,7 +234,10 @@ class Runtime:
             container["args"] = command
         self.apply({"apiVersion": "apps/v1", "kind": "StatefulSet", "metadata": {"name": name, "labels": labels},
                     "spec": {"serviceName": name, "replicas": 1, "selector": {"matchLabels": {"dependency": name}},
-                             "template": {"metadata": {"labels": labels}, "spec": {"containers": [container]}},
+                             "template": {"metadata": {"labels": labels}, "spec": {"containers": [container],
+                                 "nodeSelector": {"kubernetes.io/hostname": self.cluster + "-control-plane"},
+                                 "tolerations": [{"key": "node-role.kubernetes.io/control-plane", "operator": "Exists", "effect": "NoSchedule"},
+                                                 {"key": "node-role.kubernetes.io/master", "operator": "Exists", "effect": "NoSchedule"}]}},
                              "volumeClaimTemplates": [{"metadata": {"name": "data"}, "spec": {"accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "1Gi"}}}}]}})
 
     def dependencies(self):
@@ -395,7 +402,35 @@ class Runtime:
             process.wait(timeout=10)
             log.close()
         self.forwards.clear()
-        self.stream("kubernetes-faults", sys.executable, "scripts/kubernetes/kind_tests.py", env=test_env, timeout=1200)
+        try:
+            self.stream("kubernetes-faults", sys.executable, "scripts/kubernetes/kind_tests.py", env=test_env, timeout=1800)
+            self.stream("kubernetes-extended-faults", sys.executable, "scripts/kubernetes/kind_extended_tests.py", env=test_env, timeout=2400)
+        finally:
+            self.kind_case_totals()
+
+    def kind_case_totals(self):
+        # A skipped later suite remains in the denominator after an early failure.
+        suites, totals = [], {"denominator": 9, "passed": 0, "failed": 0, "skipped": 0, "not_run": 0}
+        for filename, count in (("kind-summary.json", 5), ("kind-extended-summary.json", 4)):
+            path = self.evidence / filename
+            if not path.is_file():
+                suites.append({"summary": filename, "denominator": count, "status": "NOT_RUN"})
+                totals["not_run"] += count
+                continue
+            summary = json.loads(path.read_text())
+            cases = summary.get("cases", [])
+            passed = sum(row.get("status") == "PASS" for row in cases)
+            failed = sum(row.get("status") == "FAIL" for row in cases)
+            if (summary.get("denominator") != count or len(cases) != count or passed + failed != count
+                    or summary.get("passed") != passed or summary.get("failed") != failed or summary.get("skipped") != 0):
+                raise ValueError("Malformed mandatory Kubernetes case denominator: " + filename)
+            totals["passed"] += passed
+            totals["failed"] += failed
+            suites.append({"summary": filename, "denominator": count, "passed": passed, "failed": failed, "skipped": 0,
+                           "cleanup_errors": summary.get("cleanup_errors", [])})
+        self.manifest["kubernetes_suites"] = suites
+        self.manifest["kubernetes_case_totals"] = totals
+        self.save("manifest", self.manifest)
 
     def migration_failure_gate(self):
         before = json.loads(self.k("get", "deployment", "photo-api", "photo-media-worker", "-o", "json"))
@@ -499,6 +534,7 @@ class Runtime:
                 (self.evidence / "summary.md").write_text(f"Kubernetes runtime acceptance: {self.manifest['status']}\n\n"
                     f"Source SHA: `{self.sha}`. Scope: disposable kind with real PostgreSQL/pgvector, RabbitMQ and S3-compatible SILO.\n\n"
                     f"Stages: `{json.dumps(self.manifest['case_totals'])}`. See all stage logs, migration records and Kubernetes case results; failed samples are retained.\n\n"
+                    f"Mandatory Kubernetes fault cases: `{json.dumps(self.manifest['kubernetes_case_totals'])}`.\n\n"
                     "This run does not validate AWS EKS, Pod Identity/IAM, Secrets Store CSI, ALB, CloudFront, managed services, NetworkPolicy enforcement, real CLIP, or a production endpoint.\n")
 
 

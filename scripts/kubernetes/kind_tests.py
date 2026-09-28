@@ -30,6 +30,13 @@ CASES = (
 )
 
 
+def outage_observation_seconds(heartbeat_max_age):
+    """Observation must outlast a stale heartbeat, not merely the probe period."""
+    ensure(type(heartbeat_max_age) in (int, float) and 0 < heartbeat_max_age <= 600,
+           "Worker heartbeat budget must be explicit and bounded")
+    return max(210, heartbeat_max_age + 30)
+
+
 def ensure(condition, message):
     if not condition:
         raise AssertionError(message)
@@ -315,6 +322,17 @@ class Harness:
         return self.command("exec", pod, "--", "python", "-m", "app.health", "--mode", mode,
                             check=False, timeout=25).returncode
 
+    def worker_heartbeat(self, pod):
+        source = ("import json,os,time;from app.health import live_path;"
+                  "p=json.loads(live_path().read_text());"
+                  "p['observed_at']=time.time();"
+                  "p['maximum_age_seconds']=float(os.getenv('WORKER_LIVE_MAX_AGE_SECONDS','180'));"
+                  "print(json.dumps(p))")
+        row = json.loads(self.command("exec", pod, "--", "python", "-c", source, timeout=25).stdout)
+        ensure(type(row.get("updated_at")) in (int, float) and row["updated_at"] > 0,
+               "Worker heartbeat does not contain a real timestamp")
+        return row
+
     def signal_worker(self, worker):
         self.guard()
         cluster = os.environ["KIND_CLUSTER"]
@@ -352,7 +370,7 @@ class Harness:
     def identity(snapshot):
         return {p["name"]: (p["uid"], tuple((c["name"], c["restarts"]) for c in p["containers"])) for p in snapshot}
 
-    def observe_outage(self, dependency, baseline, duration=65):
+    def observe_outage(self, dependency, baseline):
         started, samples = time.monotonic(), 0
         expected_api = 200 if dependency == "rabbitmq" else 503
         workers = baseline[1]
@@ -360,6 +378,9 @@ class Harness:
                   "Workers did not report dependency readiness failure", timeout=70, interval=3)
         self.wait(lambda: all(not p["ready"] for p in self.snapshot(self.pods("media-worker"))),
                   "Kubernetes did not remove worker readiness", timeout=60, interval=3)
+        first_heartbeats = {p["name"]: self.worker_heartbeat(p["name"]) for p in workers}
+        duration = max(outage_observation_seconds(row["maximum_age_seconds"]) for row in first_heartbeats.values())
+        last_heartbeats = first_heartbeats
         if dependency == "postgres":
             self.wait(lambda: all(not p["ready"] for p in self.snapshot(self.pods("api"))),
                       "Kubernetes did not remove API readiness during database outage", timeout=75, interval=3)
@@ -379,9 +400,12 @@ class Harness:
                 api_probes.append({"pod": pod["name"], "live_status": live, "ready_status": ready})
                 ensure(live == 200 and ready == expected_api, "Unexpected API liveness/readiness during " + dependency + " outage")
             worker_probes = []
+            last_heartbeats = {}
             for pod in workers:
                 live, ready = self.pod_health(pod["name"], "live"), self.pod_health(pod["name"], "readiness")
-                worker_probes.append({"pod": pod["name"], "live_exit": live, "ready_exit": ready})
+                heartbeat = self.worker_heartbeat(pod["name"])
+                last_heartbeats[pod["name"]] = heartbeat
+                worker_probes.append({"pod": pod["name"], "live_exit": live, "ready_exit": ready, "heartbeat": heartbeat})
                 ensure(live == 0 and ready == 1, "Unexpected worker liveness/readiness during " + dependency + " outage")
             ensure(all(not p["ready"] for p in current[1]), "Worker unexpectedly Kubernetes-ready during outage")
             self.evidence.record("outage_sample", dependency=dependency, outage_seconds=round(time.monotonic() - started, 3),
@@ -389,8 +413,12 @@ class Harness:
             samples += 1
             time.sleep(4)
         elapsed = time.monotonic() - started
-        ensure(elapsed >= 60 and samples >= 3, "Insufficient outage observation")
-        return {"observed_outage_seconds": round(elapsed, 3), "samples": samples, "uid_restart_changes": 0}
+        ensure(elapsed >= duration and samples >= 3, "Insufficient outage observation beyond the heartbeat budget")
+        progress = {name: last_heartbeats[name]["updated_at"] - row["updated_at"] for name, row in first_heartbeats.items()}
+        ensure(all(value > 0 for value in progress.values()), "Worker I/O heartbeat did not progress during the dependency outage")
+        return {"observed_outage_seconds": round(elapsed, 3), "required_observation_seconds": duration,
+                "heartbeat_max_age_seconds": {name: row["maximum_age_seconds"] for name, row in first_heartbeats.items()},
+                "heartbeat_progress_seconds": progress, "samples": samples, "uid_restart_changes": 0}
 
     def replicas_images_revision(self):
         api, workers = self.wait(self.ready_apps, "Expected two ready API pods and ready workers", timeout=240)
