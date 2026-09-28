@@ -116,7 +116,10 @@ class WorkerPodBoundaryTests(unittest.TestCase):
                      "labels": {"app.kubernetes.io/instance": "photo", "app.kubernetes.io/component": "media-worker"},
                      "annotations": {"photoplatform.io/revision": "a" * 40}},
                     "spec": {"containers": [{"name": "media-worker", "image": image}]},
-                    "status": {"containerStatuses": [{"name": "media-worker", "imageID": image}]}}
+                    "status": {"containerStatuses": [{"name": "media-worker", "imageID": image,
+                        "containerID": "containerd://" + "1" * 64, "restartCount": 0,
+                        "state": {"running": {"startedAt": "2026-09-28T00:00:00Z"}}}]}}
+        self.worker = extended.Harness.snapshot([self.pod])[0]
 
     def subject(self, pod):
         with patch.dict(os.environ, self.env, clear=True):
@@ -150,6 +153,25 @@ class WorkerPodBoundaryTests(unittest.TestCase):
                     harness.hook_file(self.worker, filename)
         harness.pod_python.assert_not_called()
 
+    def test_stale_ready_container_cannot_be_execed_or_silently_replaced(self):
+        changes = (lambda p: p["status"]["containerStatuses"][0].update(state={"terminated": {"exitCode": 0}}),
+                   lambda p: p["status"]["containerStatuses"][0].update(containerID="containerd://" + "2" * 64),
+                   lambda p: p["status"]["containerStatuses"][0].update(restartCount=1))
+        with patch.dict(os.environ, self.env, clear=True):
+            for index, change in enumerate(changes):
+                candidate = copy.deepcopy(self.pod)
+                change(candidate)
+                with self.subTest(index=index), self.assertRaises(AssertionError):
+                    self.subject(candidate).guard_worker(self.worker, allow_terminating=True)
+
+    def test_termination_is_allowed_only_explicitly_for_same_running_container(self):
+        pod = copy.deepcopy(self.pod)
+        pod["metadata"]["deletionTimestamp"] = "2026-09-28T00:01:00Z"
+        with patch.dict(os.environ, self.env, clear=True):
+            with self.assertRaises(AssertionError):
+                self.subject(pod).guard_worker(self.worker)
+            self.assertEqual(self.subject(pod).guard_worker(self.worker, allow_terminating=True)["uid"], self.worker["uid"])
+
     def test_release_never_executes_into_unowned_pending_replacement(self):
         harness = self.subject(self.pod)
         filename = "media-17.before_write.block"
@@ -159,9 +181,19 @@ class WorkerPodBoundaryTests(unittest.TestCase):
         harness.pods = Mock(return_value=[])
         harness.owned_barrier_pods = {filename: {peer["uid"], self.worker["uid"]}}
         harness.hook_file = Mock()
-        harness.release(self.worker, {}, filename)
+        harness.release(self.worker, {"worker_id": self.worker["name"], "id": "real-job", "claim_token": "real-token"}, filename)
         self.assertEqual([call.args for call in harness.hook_file.call_args_list],
                          [(peer, filename, "remove"), (self.worker, filename, "remove")])
+        self.assertEqual(harness.hook_file.call_args_list[-1].kwargs, {"allow_terminating": True})
+
+    def test_terminating_release_cannot_touch_an_unowned_or_unclaimed_pod(self):
+        harness = self.subject(self.pod)
+        harness.hook_file = Mock()
+        for job in ({}, {"worker_id": "other-worker", "id": "real-job", "claim_token": "real-token"},
+                    {"worker_id": self.worker["name"], "id": "real-job", "claim_token": "real-token"}):
+            with self.subTest(job=job), self.assertRaises(AssertionError):
+                harness.release(self.worker, job, "media-17.before_write.block")
+        harness.hook_file.assert_not_called()
 
     def test_cleanup_drops_vanished_tmp_volume_and_never_touches_new_pod(self):
         harness = self.subject(self.pod)
@@ -174,6 +206,61 @@ class WorkerPodBoundaryTests(unittest.TestCase):
         self.assertEqual(harness.release_owned_barriers(), [])
         harness.hook_file.assert_not_called()
         self.assertEqual(harness.owned_barriers, set())
+
+
+class WorkerRolloutSettlementTests(unittest.TestCase):
+    def setUp(self):
+        self.deployment = {"metadata": {"uid": "deployment-uid", "generation": 3,
+                               "annotations": {"deployment.kubernetes.io/revision": "2"}},
+                           "spec": {"replicas": 1}, "status": {"observedGeneration": 3,
+                               "replicas": 1, "updatedReplicas": 1, "readyReplicas": 1, "availableReplicas": 1}}
+        self.replica_sets = [{"metadata": {"uid": "current-rs", "annotations": {"deployment.kubernetes.io/revision": "2"},
+                                "ownerReferences": [{"kind": "Deployment", "uid": "deployment-uid", "controller": True}]},
+                             "spec": {"replicas": 1}}]
+        self.pod = {"metadata": {"name": "current-worker", "uid": "current-pod",
+                         "ownerReferences": [{"kind": "ReplicaSet", "uid": "current-rs", "controller": True}]},
+                    "spec": {"containers": [{"name": "media-worker", "env":
+                        [{"name": key, "value": value} for key, value in extended.HOOK_ENV.items()]}]},
+                    "status": {"phase": "Running", "conditions": [{"type": "Ready", "status": "True"}],
+                        "containerStatuses": [{"name": "media-worker", "ready": True,
+                            "containerID": "containerd://" + "1" * 64,
+                            "state": {"running": {"startedAt": "2026-09-28T00:00:00Z"}}}]}}
+
+    def test_current_running_hook_enabled_pod_is_settled(self):
+        self.assertEqual(extended.settled_worker_pods(self.deployment, self.replica_sets, [self.pod]), [self.pod])
+
+    def test_cloud_regression_still_ready_retiring_pod_must_be_removed(self):
+        old = copy.deepcopy(self.pod)
+        old["metadata"].update(name="retiring-worker", uid="old-pod", deletionTimestamp="2026-09-28T00:01:00Z")
+        self.assertIsNone(extended.settled_worker_pods(self.deployment, self.replica_sets, [self.pod, old]))
+        self.assertIsNone(extended.settled_worker_pods(self.deployment, self.replica_sets, [old]))
+
+    def test_unobserved_generation_or_extra_replica_prevents_new_fixture(self):
+        for key, value in (("observedGeneration", 2), ("replicas", 2), ("updatedReplicas", 0), ("availableReplicas", 0)):
+            changed = copy.deepcopy(self.deployment)
+            changed["status"][key] = value
+            with self.subTest(key=key):
+                self.assertIsNone(extended.settled_worker_pods(changed, self.replica_sets, [self.pod]))
+
+    def test_old_or_foreign_replicaset_cannot_claim_current_worker(self):
+        for reference in ({"kind": "ReplicaSet", "uid": "old-rs", "controller": True},
+                          {"kind": "ReplicaSet", "uid": "current-rs", "controller": False}):
+            changed = copy.deepcopy(self.pod)
+            changed["metadata"]["ownerReferences"] = [reference]
+            self.assertIsNone(extended.settled_worker_pods(self.deployment, self.replica_sets, [changed]))
+        changed = copy.deepcopy(self.replica_sets)
+        changed[0]["metadata"]["ownerReferences"][0]["uid"] = "foreign-deployment"
+        self.assertIsNone(extended.settled_worker_pods(self.deployment, changed, [self.pod]))
+
+    def test_stale_ready_missing_running_container_or_hooks_is_not_settled(self):
+        changes = (lambda p: p["status"]["containerStatuses"][0].update(state={"terminated": {"exitCode": 0}}),
+                   lambda p: p["status"]["containerStatuses"][0].update(containerID=""),
+                   lambda p: p["spec"]["containers"][0].update(env=[]))
+        for index, change in enumerate(changes):
+            changed = copy.deepcopy(self.pod)
+            change(changed)
+            with self.subTest(index=index):
+                self.assertIsNone(extended.settled_worker_pods(self.deployment, self.replica_sets, [changed]))
 
 
 if __name__ == "__main__":

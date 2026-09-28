@@ -43,6 +43,40 @@ def validate_marker(marker, job, worker, stage):
     return marker
 
 
+def settled_worker_pods(deployment, replica_sets, pods):
+    """Readiness alone can remain stale while an old container is being removed.
+
+    No new fixture may be submitted until every retiring Pod is gone and the
+    exact current ReplicaSet owns all desired running, hook-enabled workers.
+    """
+    desired, status = deployment["spec"]["replicas"], deployment.get("status", {})
+    ensure(type(desired) is int and desired in (1, 2), "Unexpected disposable worker replica count")
+    if (status.get("observedGeneration", 0) < deployment["metadata"]["generation"]
+            or any(status.get(key, 0) != desired for key in ("replicas", "updatedReplicas", "readyReplicas", "availableReplicas"))
+            or status.get("unavailableReplicas", 0) or len(pods) != desired):
+        return None
+    revision = deployment["metadata"].get("annotations", {}).get("deployment.kubernetes.io/revision")
+    current = [rs for rs in replica_sets if revision
+               and rs["metadata"].get("annotations", {}).get("deployment.kubernetes.io/revision") == revision
+               and any(ref.get("kind") == "Deployment" and ref.get("uid") == deployment["metadata"]["uid"]
+                       and ref.get("controller") is True for ref in rs["metadata"].get("ownerReferences", []))]
+    if len(current) != 1 or current[0]["spec"].get("replicas") != desired:
+        return None
+    for pod in pods:
+        containers = [c for c in pod["spec"]["containers"] if c["name"] == "media-worker"]
+        states = [c for c in pod.get("status", {}).get("containerStatuses", []) if c["name"] == "media-worker"]
+        if (pod["metadata"].get("deletionTimestamp") or pod.get("status", {}).get("phase") != "Running"
+                or not any(c.get("type") == "Ready" and c.get("status") == "True" for c in pod["status"].get("conditions", []))
+                or not any(ref.get("kind") == "ReplicaSet" and ref.get("uid") == current[0]["metadata"]["uid"]
+                           and ref.get("controller") is True for ref in pod["metadata"].get("ownerReferences", []))
+                or len(containers) != 1 or len(states) != 1 or not states[0].get("ready")
+                or not states[0].get("state", {}).get("running") or not states[0].get("containerID")
+                or any({entry["name"]: entry.get("value") for entry in containers[0].get("env", [])}.get(key) != value
+                       for key, value in HOOK_ENV.items())):
+            return None
+    return pods
+
+
 def validate_helm_files(environment):
     import yaml
     for key in ("KIND_HELM_VALUES_FILE", "KIND_HELM_LOCAL_VALUES_FILE"):
@@ -85,7 +119,7 @@ class ExtendedHarness(Harness):
         self.worker_layout_restore = None
         self.temporary_pdb = None
 
-    def guard_worker(self, worker):
+    def guard_worker(self, worker, allow_terminating=False):
         self.guard()
         pod = self.data("get", "pod", worker["name"])
         labels = pod["metadata"].get("labels", {})
@@ -94,12 +128,33 @@ class ExtendedHarness(Harness):
                "Hook target is not this release's worker")
         actual = self.snapshot([pod])[0]
         ensure(actual["uid"] == worker["uid"], "Hook target worker pod was replaced")
+        ensure(allow_terminating or not actual["deletion_timestamp"], "Hook target worker is terminating")
+        expected = [c for c in worker.get("containers", []) if c["name"] == "media-worker"]
+        observed = [c for c in actual["containers"] if c["name"] == "media-worker"]
+        ensure(len(expected) == len(observed) == 1 and expected[0]["container_id"]
+               and expected[0]["container_id"] == observed[0]["container_id"]
+               and expected[0]["restarts"] == observed[0]["restarts"] and observed[0]["running"],
+               "Hook target worker container stopped or changed after it was pinned")
         image = os.environ["KIND_WORKER_IMAGE"]
         ensure(image in actual["images"] and actual["source_sha"] == os.environ["KIND_SOURCE_SHA"],
                "Hook target worker image/revision differs")
         ensure(any(image.rsplit("@", 1)[1] in c["image_id"] for c in actual["containers"]),
                "Hook target runtime image digest differs")
         return actual
+
+    def wait_settled_workers(self):
+        def selected():
+            deployment = self.data("get", "deployment", "photo-media-worker")
+            replica_sets = self.data("get", "replicasets", "-l",
+                "app.kubernetes.io/instance=photo,app.kubernetes.io/component=media-worker")["items"]
+            return settled_worker_pods(deployment, replica_sets, self.pods("media-worker"))
+        pods = self.wait(selected, "Current worker ReplicaSet did not settle after retiring Pods", timeout=240)
+        workers = self.snapshot(pods)
+        for worker in workers:
+            self.guard_worker(worker)
+        self.evidence.record("workers_settled_before_fixture", workers=workers, retiring_pods=0,
+                             exact_current_replicaset=True)
+        return workers
 
     def enable_hooks(self):
         self.guard()
@@ -120,23 +175,25 @@ class ExtendedHarness(Harness):
         self.command("set", "env", "deployment/photo-media-worker", "--containers=media-worker",
                      *[k + "=" + v for k, v in HOOK_ENV.items()])
         self.command("rollout", "status", "deployment/photo-media-worker", "--timeout=240s", timeout=255)
+        self.wait_settled_workers()
         self.wait(self.ready_apps, "Hook-enabled worker never became ready", timeout=240)
         self.evidence.record("worker_barriers_enabled", provider="minio", disposable=True,
                              environment="kubernetes-local", worker_image=os.environ["KIND_WORKER_IMAGE"])
 
-    def pod_python(self, worker, source, timeout=25, check=True):
-        self.guard_worker(worker)
+    def pod_python(self, worker, source, timeout=25, check=True, allow_terminating=False):
+        self.guard_worker(worker, allow_terminating=allow_terminating)
         return self.command("exec", worker["name"], "--", "python", "-c", source,
                             timeout=timeout, check=check)
 
-    def hook_file(self, worker, filename, action="touch"):
+    def hook_file(self, worker, filename, action="touch", allow_terminating=False):
+        ensure(not allow_terminating or action == "remove", "Terminating workers may only release an owned barrier")
         ensure(re.fullmatch(r"(?:media-[1-9][0-9]*\.(?:before_write|after_write)\.block|"
                             r"[a-f0-9-]{36}\.release)", filename), "Invalid hook filename")
         path = HOOK_DIR + "/" + filename
         source = "from pathlib import Path;p=Path(" + repr(path) + ");"
         source += ("p.parent.mkdir(parents=True,exist_ok=True);p.touch()" if action == "touch"
                    else "p.unlink(missing_ok=True)")
-        self.pod_python(worker, source)
+        self.pod_python(worker, source, allow_terminating=allow_terminating)
         if filename.endswith(".block"):
             if action == "touch":
                 self.owned_barriers.add(filename)
@@ -198,10 +255,10 @@ class ExtendedHarness(Harness):
 
     def create_blocked(self, stage):
         self.refresh_apis()
+        workers = self.wait_settled_workers()
         upload, _, payload = self.test.create()
         self.test.put(upload, payload)
         filename = f"media-{upload['mediaId']}.{stage}.block"
-        workers = self.snapshot(self.pods("media-worker"))
         ensure(workers and all(p["ready"] for p in workers), "No ready worker for barrier")
         for worker in workers:
             self.hook_file(worker, filename)
@@ -218,12 +275,15 @@ class ExtendedHarness(Harness):
         return upload, job, worker, observed, filename
 
     def release(self, worker, job, filename):
+        ensure(job.get("worker_id") == worker["name"] and job.get("id") and job.get("claim_token"),
+               "Terminating release requires the pinned real worker claim")
+        ensure(worker["uid"] in self.owned_barrier_pods.get(filename, set()), "Claimed release does not own this Pod barrier")
         # Clear idle peers first. The claimed terminating worker can exit as soon
         # as its one remaining block is removed; do not require a second exec.
         for peer in self.snapshot(self.pods("media-worker")):
             if peer["uid"] != worker["uid"] and peer["uid"] in self.owned_barrier_pods.get(filename, set()):
                 self.hook_file(peer, filename, "remove")
-        self.hook_file(worker, filename, "remove")
+        self.hook_file(worker, filename, "remove", allow_terminating=True)
 
     def prepare_worker_drain_layout(self):
         self.guard()
@@ -240,11 +300,10 @@ class ExtendedHarness(Harness):
             {"op": "test", "path": "/metadata/uid", "value": self.worker_layout_restore["uid"]},
             {"op": "add", "path": "/spec/template/spec/affinity", "value": affinity}]))
         self.command("rollout", "status", "deployment/photo-media-worker", "--timeout=240s", timeout=255)
+        self.wait_settled_workers()
         self.command("scale", "deployment/photo-media-worker", "--replicas=2")
         self.command("rollout", "status", "deployment/photo-media-worker", "--timeout=240s", timeout=255)
-        workers = self.wait(lambda: (pods if len(pods := self.snapshot(self.pods("media-worker"))) == 2
-                                    and all(p["ready"] for p in pods) else None),
-                            "Two drain fixture workers never became ready", timeout=240)
+        workers = self.wait_settled_workers()
         ensure(len({p["node"] for p in workers}) == 2, "Drain fixture workers must occupy distinct nodes")
         for worker in workers:
             self.guard_worker(worker)
@@ -279,6 +338,7 @@ class ExtendedHarness(Harness):
                 {"op": "replace", "path": "/spec/replicas", "value": original["replicas"]},
                 {"op": "add", "path": "/spec/template/spec/affinity", "value": original["affinity"] or {}}]))
             self.command("rollout", "status", "deployment/photo-media-worker", "--timeout=240s", timeout=255)
+            self.wait_settled_workers()
             self.worker_layout_restore = None
 
     def real_job_over_five_minutes_continuous_claim(self):

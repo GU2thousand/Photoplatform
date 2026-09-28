@@ -225,11 +225,13 @@ class Harness:
         for pod in pods:
             status = pod.get("status", {})
             result.append({"name": pod["metadata"]["name"], "uid": pod["metadata"]["uid"],
+                "deletion_timestamp": pod["metadata"].get("deletionTimestamp"),
                 "ready": any(x.get("type") == "Ready" and x.get("status") == "True" for x in status.get("conditions", [])),
                 "phase": status.get("phase"),
                 "containers": [{"name": x["name"], "restarts": x.get("restartCount", 0), "image_id": x.get("imageID", ""),
                                 "container_id": x.get("containerID", ""),
                                 "previous_exit_code": x.get("lastState", {}).get("terminated", {}).get("exitCode"),
+                                "running": bool(x.get("state", {}).get("running")),
                                 "ready": x.get("ready", False)} for x in status.get("containerStatuses", [])],
                 "images": [x["image"] for x in pod["spec"]["containers"]],
                 "node": pod["spec"].get("nodeName"),
