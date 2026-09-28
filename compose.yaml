@@ -109,7 +109,7 @@ services:
       XDG_CACHE_HOME: /home/worker/.cache
       HF_HOME: /home/worker/.cache/huggingface
       TORCH_HOME: /home/worker/.cache/torch
-    volumes: ["model-cache:/home/worker/.cache"]
+    volumes: ["model-cache-v2:/home/worker/.cache"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/readyz',timeout=5)"]
       interval: 10s
@@ -126,7 +126,7 @@ services:
       XDG_CACHE_HOME: /home/worker/.cache
       HF_HOME: /home/worker/.cache/huggingface
       TORCH_HOME: /home/worker/.cache/torch
-    volumes: ["model-cache:/home/worker/.cache"]
+    volumes: ["model-cache-v2:/home/worker/.cache"]
   frontend:
     build: ./frontend
     depends_on:
@@ -140,4 +140,4 @@ volumes:
   postgres-data:
   minio-data:
   rabbit-data:
-  model-cache:
+  model-cache-v2:
