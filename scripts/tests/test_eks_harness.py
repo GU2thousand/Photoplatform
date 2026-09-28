@@ -37,7 +37,8 @@ class FakeCluster:
         for component, image in (("api", IMAGE), ("media-worker", WORKER)):
             labels = {"app.kubernetes.io/name": "photoplatform", "app.kubernetes.io/instance": "photoplatform", "app.kubernetes.io/component": component}
             template = {"metadata": {"labels": labels, "annotations": {"photoplatform.io/revision": SHA}},
-                        "spec": {"containers": [{"name": component, "image": image}]}}
+                        "spec": {"containers": [{"name": component, "image": image, "env": [
+                            {"name": "POD_UID", "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}}}]}]}}
             self.deps[component] = {"metadata": {"name": "photoplatform-" + component, "uid": "dep-" + component,
                 "resourceVersion": "42", "generation": 1}, "spec": {"replicas": 1, "template": template},
                 "status": {"observedGeneration": 1, "updatedReplicas": 1, "readyReplicas": 1}}
@@ -50,12 +51,14 @@ class FakeCluster:
         self.aws = Mock()
         self.aws.client.return_value.describe_cluster.side_effect = lambda **kwargs: {"cluster": self.cluster}
 
-    def run(self, context, namespace, *args, body=None):
+    def run(self, context, namespace, *args, body=None, allowed_returncodes=(0,)):
         self.calls.append((context, namespace, args, body))
         if args[0] == "config":
             return json.dumps(self.config)
         if args[:2] == ("get", "namespace"):
             return json.dumps({"metadata": {"uid": self.system_uid}} if args[2] == "kube-system" else self.namespace)
+        if args[:2] == ("get", "pod"):
+            return json.dumps(self.pods["media-worker"])
         component = "media-worker" if any("component=media-worker" in a for a in args) else "api"
         if args[:2] == ("get", "deployments"):
             data = [self.deps[component]]
@@ -105,6 +108,26 @@ class HarnessIdentityTests(unittest.TestCase):
                     self.cluster.control()
                 self.cluster.config = original
         self.assertEqual(self.cluster.mutations(), [])
+
+    def test_exec_refuses_missing_downward_uid_before_dispatch(self):
+        control = self.cluster.control()
+        self.cluster.pods["media-worker"]["spec"]["containers"][0]["env"] = []
+        with self.assertRaises(ValueError):
+            eks_common.worker_python(control, "photoplatform-media-worker-pod", POD_UID, "print('safe')")
+        self.assertFalse(any(call[2][0] == "exec" for call in self.cluster.calls))
+
+    def test_sigkill_requires_signal_receipt_and_runtime_uid_guard(self):
+        control = self.cluster.control()
+        with patch.object(eks_common, "kubectl", return_value="PHOTOPLATFORM_SIGNAL_ISSUED\n") as run:
+            # Exact Pod lookup must still use a real checked control, so isolate the
+            # target lookup from the final exec transport mock.
+            with patch.object(eks_common, "exact_worker_pod", return_value={"uid": POD_UID}):
+                result = eks_failure.kill_exact_worker(control, "photoplatform-media-worker-pod", POD_UID)
+        code = run.call_args.args[run.call_args.args.index("-c") + 1]
+        self.assertIn("os.environ.get('POD_UID') != sys.argv[1]", code)
+        self.assertIn("os.kill(1,9)", code)
+        self.assertEqual(result["signal"], "SIGKILL")
+        self.assertEqual(run.call_args.kwargs["allowed_returncodes"], (0, 1, 137))
 
     def test_production_or_untagged_cluster_rejected_before_kubernetes_access(self):
         self.cluster.cluster["tags"]["Environment"] = "prod"
@@ -197,7 +220,7 @@ class HarnessIdentityTests(unittest.TestCase):
         db.__enter__ = Mock(return_value=db)
         db.__exit__ = Mock(return_value=False)
         job_id = "f4d37a9d-b796-41e8-9bf7-9b9794a8e9e7"
-        valid = [job_id, 12, "RUNNING", "photoplatform-media-worker-pod", 1, "future-lease", True, True]
+        valid = [job_id, 12, "RUNNING", "photoplatform-media-worker-pod", 1, "future-lease", True, True, 310]
         with patch.dict(os.environ, {"BENCHMARK_DATABASE_URL": "postgresql://sensitive"}), \
                 patch.dict("sys.modules", {"psycopg": Mock(connect=Mock(return_value=db))}):
             for changed_index, bad_value in ((3, "another-pod"), (6, False), (7, False), (2, "DONE")):

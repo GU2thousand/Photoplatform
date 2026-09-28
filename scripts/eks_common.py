@@ -27,15 +27,43 @@ def safe_name(value):
     return value
 
 
-def kubectl(context, namespace, *args, body=None):
+def kubectl(context, namespace, *args, body=None, allowed_returncodes=(0,)):
     """No shell, explicit context/namespace, bounded calls, no credential-bearing stderr."""
     result = subprocess.run(["kubectl", "--context", context, "--namespace", namespace,
                              "--request-timeout=30s", *args],
                             input=json.dumps(body) if body is not None else None,
                             text=True, capture_output=True, timeout=45)
-    if result.returncode:
+    if result.returncode not in allowed_returncodes:
         raise RuntimeError("Scoped kubectl operation failed")
     return result.stdout
+
+
+def exact_worker_pod(control, name, uid):
+    """Bind exec to a verified UID both before dispatch and inside the container."""
+    import uuid
+    safe_name(name)
+    uuid.UUID(uid)
+    matches = [p for p in control.pods("media-worker") if p["name"] == name and p["uid"] == uid]
+    if len(matches) != 1 or matches[0]["phase"] != "Running" or matches[0]["terminating"]:
+        raise ValueError("Selected UID must identify a running member of the media worker Deployment")
+    raw = control.json("get", "pod", name, "-o", "json")
+    if raw["metadata"]["uid"] != uid:
+        raise ValueError("Selected Pod UID changed before exec")
+    containers = [c for c in raw["spec"]["containers"] if c["name"] == "media-worker"]
+    if len(containers) != 1 or containers[0].get("image") != control.manifest["images"]["worker"]:
+        raise ValueError("Expected one verified media-worker container")
+    env = containers[0].get("env", [])
+    fields = [v for v in env if v.get("name") == "POD_UID"]
+    if len(fields) != 1 or fields[0].get("valueFrom", {}).get("fieldRef", {}).get("fieldPath") != "metadata.uid":
+        raise ValueError("Pod exec requires downward API POD_UID=metadata.uid")
+    return matches[0]
+
+
+def worker_python(control, name, uid, code, payload=None, allowed_returncodes=(0,)):
+    exact_worker_pod(control, name, uid)
+    wrapped = "import os,sys,json\nif os.environ.get('POD_UID') != sys.argv[1]: raise SystemExit(42)\n" + code
+    return kubectl(control.arn, control.namespace, "exec", name, "--container", "media-worker", "--",
+                   "python", "-c", wrapped, uid, json.dumps(payload or {}), allowed_returncodes=allowed_returncodes)
 
 
 def load_manifest(path, sha):
