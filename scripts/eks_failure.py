@@ -1,8 +1,11 @@
-"""Interrupt one exact disposable media worker with graceful deletion or SIGKILL.
+"""Interrupt one exact disposable media worker with graceful Pod deletion.
 
 Requires an explicitly identified RUNNING MEDIA_PROCESS job whose worker_id is the
 selected Pod hostname. Graceful deletion is a shutdown/recovery scenario, not proof
 of SIGKILL, after-S3 crash, fencing under DB loss or the complete P6 fault matrix.
+The sigkill option fails closed: Linux namespace PID 1 cannot be killed from the
+same namespace. It needs a separately reviewed ancestor/CRI operator helper with
+exact Pod UID and container-ID checks, which this script does not implement.
 """
 import argparse
 import os
@@ -13,7 +16,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from benchmarks.cloud_common import CloudAPI, database_timings, required, write_report
-from scripts.eks_common import eks_guard, kubectl, safe_name, worker_python
+from scripts.eks_common import eks_guard, kubectl, safe_name
 
 
 def running_job(media_id, job_id, pod_name):
@@ -54,13 +57,10 @@ def delete_exact_pod(control, name, uid):
 def kill_exact_worker(control, name, uid):
     if os.getenv("ALLOW_EKS_FAILURE_INJECTION") != "1":
         raise ValueError("Set ALLOW_EKS_FAILURE_INJECTION=1")
-    output = worker_python(control, name, uid,
-        "print('PHOTOPLATFORM_SIGNAL_ISSUED',flush=True)\nos.kill(1,9)\n",
-        allowed_returncodes=(0, 1, 137))
-    if "PHOTOPLATFORM_SIGNAL_ISSUED" not in output.splitlines():
-        raise RuntimeError("Selected container did not acknowledge the guarded signal command")
-    return {"podName": name, "podUid": uid, "signal": "SIGKILL", "target": "container PID 1",
-            "semantics": "In-container downward UID checked immediately before signal; observed restart/reclaim required afterward"}
+    # A receipt from a same-PID-namespace os.kill(1, SIGKILL) is not evidence that
+    # the Linux namespace init received a fatal signal. Never issue that command
+    # or attribute a coincidental Kubernetes restart to a successful SIGKILL.
+    raise RuntimeError("UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED")
 
 
 def main():
@@ -78,11 +78,15 @@ def main():
     if args.timeout < 1 or args.minimum_job_age_seconds < 0:
         parser.error("timeout must be positive and minimum job age nonnegative")
     report = {"kind": "real-aws-eks-single-worker-fault", "faultMode": args.fault_mode,
-              "status": "FAIL", "matrixStatus": "INCOMPLETE",
+              "status": "FAIL", "matrixStatus": "INCOMPLETE", "faultIssued": False,
               "limitation": "Graceful deletion or a signal command may race job completion; DB loss, after-S3 crash and full fault matrix require separate evidence"}
     try:
         if os.getenv("ALLOW_EKS_FAILURE_INJECTION") != "1":
             raise ValueError("Set ALLOW_EKS_FAILURE_INJECTION=1")
+        if args.fault_mode == "sigkill":
+            # Unsupported capability is reported before any AWS/Pod lookup or
+            # business request. There is no in-container SIGKILL fallback.
+            kill_exact_worker(None, args.pod_name, args.pod_uid)
         _, control, report["provenance"] = eks_guard()
         api = CloudAPI()
         upload = {"uploadId": args.upload_id}
@@ -98,6 +102,7 @@ def main():
         report["before"] = control.state("media-worker")
         write_report(args.output, report)
         report["fault"] = (kill_exact_worker if args.fault_mode == "sigkill" else delete_exact_pod)(control, args.pod_name, args.pod_uid)
+        report["faultIssued"] = True
         report["faultIssuedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         write_report(args.output, report)
         started = time.monotonic()
@@ -125,9 +130,12 @@ def main():
         report.update(status="PASS", after=after, recoverySeconds=time.monotonic() - started, recoveredDeployment=recovered)
     except Exception as exc:
         report["fatalErrorType"] = type(exc).__name__
+        if isinstance(exc, RuntimeError) and str(exc) == "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED":
+            report["unsupportedScope"] = "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED"
+            report["requiredHelper"] = "Separately reviewed helper outside the container PID namespace, with exact Pod UID and CRI container ID guards"
     finally:
         write_report(args.output, report)
-    print(f"Single EKS Pod deletion recovery: {report['status']}; report: {args.output}")
+    print(f"Selected EKS worker fault: {report['status']}; report: {args.output}")
     return 0 if report["status"] == "PASS" else 1
 
 

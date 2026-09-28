@@ -116,18 +116,13 @@ class HarnessIdentityTests(unittest.TestCase):
             eks_common.worker_python(control, "photoplatform-media-worker-pod", POD_UID, "print('safe')")
         self.assertFalse(any(call[2][0] == "exec" for call in self.cluster.calls))
 
-    def test_sigkill_requires_signal_receipt_and_runtime_uid_guard(self):
+    def test_sigkill_requires_ancestor_helper_and_never_executes_inside_container(self):
         control = self.cluster.control()
-        with patch.object(eks_common, "kubectl", return_value="PHOTOPLATFORM_SIGNAL_ISSUED\n") as run:
-            # Exact Pod lookup must still use a real checked control, so isolate the
-            # target lookup from the final exec transport mock.
-            with patch.object(eks_common, "exact_worker_pod", return_value={"uid": POD_UID}):
-                result = eks_failure.kill_exact_worker(control, "photoplatform-media-worker-pod", POD_UID)
-        code = run.call_args.args[run.call_args.args.index("-c") + 1]
-        self.assertIn("os.environ.get('POD_UID') != sys.argv[1]", code)
-        self.assertIn("os.kill(1,9)", code)
-        self.assertEqual(result["signal"], "SIGKILL")
-        self.assertEqual(run.call_args.kwargs["allowed_returncodes"], (0, 1, 137))
+        with patch.object(eks_failure, "kubectl") as run, patch.object(eks_common, "worker_python") as remote:
+            with self.assertRaisesRegex(RuntimeError, "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED"):
+                eks_failure.kill_exact_worker(control, "photoplatform-media-worker-pod", POD_UID)
+        run.assert_not_called()
+        remote.assert_not_called()
 
     def test_production_or_untagged_cluster_rejected_before_kubernetes_access(self):
         self.cluster.cluster["tags"]["Environment"] = "prod"
@@ -258,6 +253,26 @@ class HarnessIdentityTests(unittest.TestCase):
 
 
 class ReportAndSafetyTests(unittest.TestCase):
+    def test_unsupported_sigkill_cannot_issue_a_fault_or_record_pass(self):
+        control = Mock()
+        control.state.return_value = {"pods": [], "replicas": 1}
+        api = Mock()
+        api.state.return_value = {"status": "PROCESSING", "mediaId": 1}
+        reports = []
+        with patch.dict(os.environ, ENV), patch.object(eks_failure, "eks_guard", return_value=(Mock(), control, {})), \
+                patch.object(eks_failure, "CloudAPI", return_value=api), patch.object(eks_failure, "running_job", return_value={"attempt": 1, "currentAttemptAgeSeconds": 310}), \
+                patch.object(eks_failure, "write_report", side_effect=lambda path, report: reports.append(copy.deepcopy(report))), \
+                patch.object(eks_failure, "kubectl") as run, \
+                patch("sys.argv", ["eks_failure.py", "--fault-mode", "sigkill", "--pod-name", "worker", "--pod-uid", POD_UID,
+                                   "--upload-id", "known-upload", "--job-id", "f4d37a9d-b796-41e8-9bf7-9b9794a8e9e7"]):
+            self.assertEqual(eks_failure.main(), 1)
+        self.assertEqual(reports[-1]["status"], "FAIL")
+        self.assertFalse(reports[-1]["faultIssued"])
+        self.assertEqual(reports[-1]["unsupportedScope"], "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED")
+        run.assert_not_called()
+        api.wait.assert_not_called()
+        api.state.assert_not_called()
+
     def test_public_dns_response_must_identify_the_selected_ready_pod_and_sha(self):
         response = Mock(status_code=200, headers={"X-Photoplatform-Pod-Uid": "legacy-pod", "X-Photoplatform-Revision": SHA})
         state = {"pods": [{"uid": POD_UID, "ready": True, "terminating": False}]}
