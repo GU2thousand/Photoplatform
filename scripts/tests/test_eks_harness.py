@@ -259,13 +259,18 @@ class ReportAndSafetyTests(unittest.TestCase):
         api = Mock()
         api.state.return_value = {"status": "PROCESSING", "mediaId": 1}
         reports = []
-        with patch.dict(os.environ, ENV), patch.object(eks_failure, "eks_guard", return_value=(Mock(), control, {})), \
+        def collect(path, report):
+            self.assertEqual(Path(path).parent, Path(directory))
+            reports.append(copy.deepcopy(report) | {"executionScope": "synthetic_unit_test"})
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, ENV), patch.object(eks_failure, "eks_guard", return_value=(Mock(), control, {})), \
                 patch.object(eks_failure, "CloudAPI", return_value=api), patch.object(eks_failure, "running_job", return_value={"attempt": 1, "currentAttemptAgeSeconds": 310}), \
-                patch.object(eks_failure, "write_report", side_effect=lambda path, report: reports.append(copy.deepcopy(report))), \
+                patch.object(eks_failure, "write_report", side_effect=collect), \
                 patch.object(eks_failure, "kubectl") as run, \
                 patch("sys.argv", ["eks_failure.py", "--fault-mode", "sigkill", "--pod-name", "worker", "--pod-uid", POD_UID,
-                                   "--upload-id", "known-upload", "--job-id", "f4d37a9d-b796-41e8-9bf7-9b9794a8e9e7"]):
+                                   "--upload-id", "known-upload", "--job-id", "f4d37a9d-b796-41e8-9bf7-9b9794a8e9e7",
+                                   "--output", str(Path(directory) / "synthetic-unsupported-worker.json")]):
             self.assertEqual(eks_failure.main(), 1)
+        self.assertTrue(all(report["executionScope"] == "synthetic_unit_test" for report in reports))
         self.assertEqual(reports[-1]["status"], "FAIL")
         self.assertFalse(reports[-1]["faultIssued"])
         self.assertEqual(reports[-1]["unsupportedScope"], "UNSUPPORTED_ANCESTOR_SIGNAL_REQUIRED")
@@ -350,12 +355,14 @@ class ReportAndSafetyTests(unittest.TestCase):
         eks = Mock(arn=ARN, namespace="dev")
         writes = []
         def save(path, report):
-            writes.append(copy.deepcopy(report))
-        with patch.dict(os.environ, {"ALLOW_EKS_SCALING": "1"}), patch.object(scaling, "eks_guard", return_value=(Mock(), eks, {})), \
+            self.assertEqual(Path(path).parent, Path(directory))
+            writes.append(copy.deepcopy(report) | {"executionScope": "synthetic_unit_test"})
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"ALLOW_EKS_SCALING": "1"}), patch.object(scaling, "eks_guard", return_value=(Mock(), eks, {})), \
                 patch.object(scaling, "WorkerControl", return_value=worker), patch.object(scaling, "queue_snapshot", return_value={"messages": 0}), \
                 patch.object(scaling, "fixture", return_value=b"fixture"), patch.object(scaling, "write_report", side_effect=save), \
-                patch("sys.argv", ["eks_worker_scaling.py", "--images", "1", "--counts", "1"]):
+                patch("sys.argv", ["eks_worker_scaling.py", "--images", "1", "--counts", "1", "--output", str(Path(directory) / "synthetic-worker-scaling.json")]):
             self.assertEqual(scaling.main(), 1)
+        self.assertTrue(all(report["executionScope"] == "synthetic_unit_test" for report in writes))
         self.assertEqual(writes[0]["restorePlan"]["replicas"], 2)
         self.assertEqual(writes[0]["trials"], [])
         worker.restore.assert_called_once()
