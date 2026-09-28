@@ -6,6 +6,8 @@ import os
 import socket
 import time
 import uuid
+import threading
+from contextlib import contextmanager
 
 from botocore.exceptions import ClientError
 import psycopg
@@ -36,10 +38,88 @@ MAX_BYTES = int(os.getenv("UPLOAD_MAX_BYTES", str(15 * 1024 * 1024)))
 MODEL_VERSION = os.getenv("CLIP_MODEL_VERSION", "clip-vit-b32-openai-v1")
 
 
+class LeaseLost(RuntimeError):
+    """The original claim or its advisory-lock database session is no longer valid."""
+
+
+class JobLease:
+    """Renew on the *same* dedicated session which holds the advisory lock.
+
+    A new connection would conceal the loss of the session lock. Never reconnect
+    this session or use transaction-pooling proxies for this worker.
+    """
+    def __init__(self, conn, job, seconds=None, interval=None):
+        self.conn, self.job = conn, job
+        self.session_pid = job.get("_session_pid")
+        self.seconds = seconds if seconds is not None else int(os.getenv("WORKER_LEASE_SECONDS", "300"))
+        self.interval = interval if interval is not None else float(os.getenv("WORKER_LEASE_RENEW_SECONDS", "30"))
+        if self.seconds < 10 or not 0 < self.interval <= self.seconds / 3:
+            raise ValueError("Lease must be >=10 seconds with renewal interval <= one third")
+        self.stop = threading.Event()
+        self.lost = threading.Event()
+        self.thread = None
+
+    def renew(self):
+        if self.lost.is_set():
+            raise LeaseLost("Worker claim has been fenced")
+        try:
+            row = self.conn.execute("""
+                UPDATE media_processing_jobs SET lease_until=now()+(%s*interval '1 second'),updated_at=now()
+                WHERE id=%s AND claim_token=%s AND status='RUNNING' AND lease_until>now()
+                RETURNING id,pg_backend_pid() AS backend_pid
+                """, (self.seconds, self.job["id"], self.job["claim_token"])).fetchone()
+            if not row:
+                raise LeaseLost("Worker claim expired or was replaced")
+            if self.session_pid is not None and row.get("backend_pid") != self.session_pid:
+                raise LeaseLost("Worker advisory-lock database session changed")
+        except Exception:
+            self.lost.set()
+            raise LeaseLost("Worker database session or claim is unavailable") from None
+
+    def start(self):
+        self.thread = threading.Thread(target=self._run, name="job-lease", daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        while not self.stop.wait(self.interval):
+            try:
+                self.renew()
+            except LeaseLost:
+                log.warning("Job lease lost; subsequent writes are fenced")
+                return
+
+    def close(self):
+        self.stop.set()
+        if self.thread:
+            # A blocked renew is bounded by the session's SQL timeout. Closing
+            # the session after this guard ends cannot be confused with a new one.
+            self.thread.join()
+
+
+def assert_owned(job):
+    lease = job.get("_lease")
+    if lease:
+        # Verify the original live session immediately before each external write.
+        lease.renew()
+
+
+def fence_transaction(conn, job):
+    """Call after the image row lock: every metadata transaction uses that order."""
+    if job.get("_lease"):
+        row = conn.execute("""
+            SELECT id,pg_backend_pid() AS backend_pid FROM media_processing_jobs WHERE id=%s AND claim_token=%s
+              AND status='RUNNING' AND lease_until>now() FOR UPDATE
+            """, (job["id"], job["claim_token"])).fetchone()
+        if not row or (job.get("_session_pid") is not None and row.get("backend_pid") != job["_session_pid"]):
+            job["_lease"].lost.set()
+            raise LeaseLost("Metadata write fenced by expired or replaced claim")
+
+
 class ObservedConnection:
     """Measure actual client operations without recording SQL or credential values."""
     def __init__(self, conn):
         self.conn = conn
+        self.session_lock = threading.RLock()
         DB_CONNECTIONS.inc()
 
     def __getattr__(self, name):
@@ -55,12 +135,19 @@ class ObservedConnection:
             DB_CONNECTIONS.dec()
 
     def execute(self, *args, **kwargs):
-        with DB_TIME.labels("query").time():
+        with self.session_lock, DB_TIME.labels("query").time():
             try:
                 return self.conn.execute(*args, **kwargs)
             except psycopg.Error:
                 DB_ERRORS.labels("query").inc()
                 raise
+
+    @contextmanager
+    def transaction(self):
+        # psycopg serializes individual calls, but a renewal must never interleave
+        # with a lifecycle transaction or commit work on another thread.
+        with self.session_lock, self.conn.transaction():
+            yield
 
 
 def connection():
@@ -98,6 +185,10 @@ class Worker:
         self.bucket = os.environ["STORAGE_BUCKET"]
         self.encoder = None
 
+    def collect_garbage(self):
+        from .garbage import collect_garbage
+        return collect_garbage(connection, self.s3, self.bucket, object_key)
+
     def read(self, key):
         with STORAGE_TIME.labels("get").time(), tracer.start_as_current_span("storage.download"):
             try:
@@ -127,22 +218,27 @@ class Worker:
                 # A session advisory lock spans external I/O without holding a database transaction.
                 # DELETE uses the same lock, so a stale writer cannot recreate deleted objects.
                 media_id = job["media_id"]
-                locked = conn.execute("SELECT pg_try_advisory_lock(%s) AS locked", (job["media_id"],)).fetchone()["locked"]
-                if not locked:
+                lock_state = conn.execute("SELECT pg_try_advisory_lock(%s) AS locked,pg_backend_pid() AS backend_pid", (job["media_id"],)).fetchone()
+                if not lock_state["locked"]:
                     return True  # Durable outbox/lease watchdog will redeliver if still necessary.
                 try:
+                    seconds = int(os.getenv("WORKER_LEASE_SECONDS", "300"))
                     claim = uuid.uuid4()
                     job = conn.execute("""
                         UPDATE media_processing_jobs SET status='RUNNING',claim_token=%s,attempt=attempt+1,
-                          lease_until=now()+interval '5 minutes',updated_at=now(),started_at=now(),finished_at=NULL,worker_id=%s
+                          lease_until=now()+(%s*interval '1 second'),updated_at=now(),started_at=now(),finished_at=NULL,worker_id=%s
                         WHERE id=%s AND ((status IN ('QUEUED','RETRY') AND next_attempt_at<=now())
                           OR (status='RUNNING' AND lease_until<now())) RETURNING *
-                        """, (claim, socket.gethostname(), job_id)).fetchone()
+                        """, (claim, seconds, socket.gethostname(), job_id)).fetchone()
                     if not job:
                         return True
+                    job["_session_pid"] = lock_state.get("backend_pid")
                     span.set_attribute("media.id", job["media_id"])
                     span.set_attribute("job.type", job["job_type"])
                     QUEUE_WAIT.labels(job["job_type"]).observe(max(0,time.time()-job["created_at"].timestamp()))
+                    lease = JobLease(conn, job, seconds=seconds)
+                    job["_lease"] = lease
+                    lease.start()
                     try:
                         with DURATION.labels(job["job_type"]).time():
                             if job["job_type"] == "MEDIA_PROCESS": outcome = self.process(conn, job)
@@ -150,16 +246,31 @@ class Worker:
                             elif job["job_type"] == "DELETE": outcome = self.delete(conn, job)
                             else: raise InvalidImage("Unsupported job type")
                         JOBS.labels(job["job_type"], outcome or "completed").inc()
+                    except LeaseLost:
+                        return False  # No reconnect/write attempt from this stale session.
+                    except psycopg.Error:
+                        lease.lost.set()
+                        raise  # The broker must redeliver; never save failure on another session.
                     except Exception as exc:
+                        assert_owned(job)
                         self.fail(conn, job, exc)
+                    finally:
+                        lease.close()
                     return True
                 finally:
-                    conn.execute("SELECT pg_advisory_unlock(%s)", (media_id,))
+                    try:
+                        conn.execute("SELECT pg_advisory_unlock(%s)", (media_id,))
+                    except psycopg.Error:
+                        # A disconnected session has already released its lock.
+                        # Do not reconnect merely to unlock another session.
+                        pass
                 # The session closing also releases locks on every early-return/exception path.
 
     def finish(self, conn, job, status="DONE"):
-        conn.execute("UPDATE media_processing_jobs SET status=%s,lease_until=NULL,last_error_code=NULL,updated_at=now(),finished_at=now() WHERE id=%s AND claim_token=%s",
-                     (status,job["id"],job["claim_token"]))
+        changed = conn.execute("UPDATE media_processing_jobs SET status=%s,lease_until=NULL,last_error_code=NULL,updated_at=now(),finished_at=now() WHERE id=%s AND claim_token=%s AND status='RUNNING' AND lease_until>now()",
+                               (status,job["id"],job["claim_token"]))
+        if changed.rowcount == 0:
+            raise LeaseLost("Completion fenced by expired or replaced claim")
 
     def process(self, conn, job):
         image = conn.execute("SELECT * FROM image_assets WHERE id=%s", (job["media_id"],)).fetchone()
@@ -175,10 +286,24 @@ class Worker:
             variants, phash, metadata = process_image(data)
         if variants[0].content_type != session["content_type"]:
             raise InvalidImage("Content type mismatch")
+        assert_owned(job)
+        attempt_prefix = f"media/{image['id']}/v{job['asset_version']}/{job['pipeline_version']}/{job['claim_token']}/"
+        registered = conn.execute("""
+            INSERT INTO media_object_attempts(claim_token,job_id,media_id,object_prefix)
+            SELECT claim_token,id,media_id,%s FROM media_processing_jobs
+            WHERE id=%s AND claim_token=%s AND status='RUNNING' AND lease_until>now()
+            ON CONFLICT(claim_token) DO UPDATE SET object_prefix=excluded.object_prefix
+            RETURNING claim_token
+            """, (attempt_prefix, job["id"], job["claim_token"])).fetchone()
+        if not registered:
+            raise LeaseLost("Storage attempt registry write fenced by expired claim")
         rows = []
         for variant in variants:
             filename = "original" if variant.name == "original" else variant.name + ".webp"
-            key = f"media/{image['id']}/v{job['asset_version']}/{job['pipeline_version']}/{filename}"
+            # A stale in-flight PUT can complete after DB-session loss. Isolate
+            # attempts so it cannot overwrite objects published by a newer claim.
+            key = attempt_prefix + filename
+            assert_owned(job)
             with STORAGE_TIME.labels("put").time(), tracer.start_as_current_span("storage.variant"):
                 try:
                     self.s3.put_object(Bucket=self.bucket, Key=object_key(key), Body=variant.data,
@@ -192,6 +317,7 @@ class Worker:
         fault_after_s3(job)
         with conn.transaction():
             current = conn.execute("SELECT deleted_at,asset_version FROM image_assets WHERE id=%s FOR UPDATE", (image["id"],)).fetchone()
+            fence_transaction(conn, job)
             if current["deleted_at"] or current["asset_version"]!=job["asset_version"]:
                 self.finish(conn,job,"CANCELLED"); return "cancelled"  # DELETE cleans the prefix after this lock releases.
             for row in rows:
@@ -231,6 +357,7 @@ class Worker:
             vector = self.encoder.image(self.read(source["object_key"]))
         with conn.transaction():
             current = conn.execute("SELECT deleted_at,asset_version FROM image_assets WHERE id=%s FOR UPDATE",(image["id"],)).fetchone()
+            fence_transaction(conn, job)
             if current["deleted_at"] or current["asset_version"]!=job["asset_version"]:
                 self.finish(conn,job,"CANCELLED"); return "cancelled"
             conn.execute("""
@@ -250,11 +377,14 @@ class Worker:
                 for page in self.s3.get_paginator("list_object_versions").paginate(Bucket=self.bucket,Prefix=prefix):
                     # Explicit version IDs also cover unversioned/suspended buckets.
                     for item in page.get("Versions", []) + page.get("DeleteMarkers", []):
+                        assert_owned(job)
                         self.s3.delete_object(Bucket=self.bucket, Key=item["Key"], VersionId=item["VersionId"])
             except Exception:
                 STORAGE_ERRORS.labels("delete").inc()
                 raise
         with conn.transaction():
+            conn.execute("SELECT id FROM image_assets WHERE id=%s FOR UPDATE", (job["media_id"],))
+            fence_transaction(conn, job)
             conn.execute("DELETE FROM media_embeddings WHERE media_id=%s",(job["media_id"],))
             conn.execute("DELETE FROM media_variants WHERE media_id=%s",(job["media_id"],))
             conn.execute("UPDATE image_assets SET processing_status='DELETED',embedding_status='NOT_REQUESTED',updated_at=now() WHERE id=%s",(job["media_id"],))
@@ -275,10 +405,13 @@ class Worker:
             # All lifecycle transactions lock image before job (API delete/retry and
             # successful processing use the same order), avoiding a delete/failure deadlock.
             conn.execute("SELECT id FROM image_assets WHERE id=%s FOR UPDATE",(job["media_id"],))
-            conn.execute("""
+            fence_transaction(conn, job)
+            changed = conn.execute("""
                 UPDATE media_processing_jobs SET status=%s,last_error_code=%s,lease_until=NULL,
-                  next_attempt_at=now()+(%s*interval '1 second'),updated_at=now(),finished_at=now() WHERE id=%s AND claim_token=%s AND status='RUNNING'
+                  next_attempt_at=now()+(%s*interval '1 second'),updated_at=now(),finished_at=now() WHERE id=%s AND claim_token=%s AND status='RUNNING' AND lease_until>now()
                 """,(status,reason,min(300,5*2**min(job["attempt"],6)),job["id"],job["claim_token"]))
+            if changed.rowcount == 0:
+                raise LeaseLost("Failure metadata fenced by expired or replaced claim")
             conn.execute("UPDATE media_outbox SET last_published_at=NULL WHERE job_id=%s",(job["id"],))
             if dead and job["job_type"] in {"MEDIA_PROCESS","EMBED"}:
                 field="processing_status" if job["job_type"]=="MEDIA_PROCESS" else "embedding_status"

@@ -1,5 +1,6 @@
-"""Container configuration shared by local Compose and AWS ECS tasks."""
+"""Container configuration shared by Compose, ECS and Kubernetes workloads."""
 import os
+from pathlib import Path
 import ssl
 
 import boto3
@@ -7,17 +8,51 @@ import pika
 from botocore.config import Config
 
 
+SECRET_ENV_NAMES = (
+    "DATABASE_URL", "DATABASE_HOST", "DATABASE_USER", "DATABASE_PASSWORD",
+    "RABBITMQ_URL", "RABBITMQ_HOST", "RABBITMQ_USER", "RABBITMQ_USERNAME", "RABBITMQ_PASSWORD",
+    "ENCODER_TOKEN", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY",
+)
+_SECRET_FILE_VALUES = {}
+
+
+def load_secret_files():
+    """Read explicitly supported CSI secrets; errors never include their contents.
+
+    Values are read once at startup. Secret rotation requires a coordinated rollout.
+    RABBITMQ_CA_FILE is a certificate path, not a secret-value override.
+    """
+    for name in SECRET_ENV_NAMES:
+        source = os.getenv(name + "_FILE")
+        if not source:
+            continue
+        key = (name, source)
+        value = _SECRET_FILE_VALUES.get(key)
+        if value is None:
+            try:
+                value = Path(source).read_text(encoding="utf-8").rstrip("\r\n")
+            except (OSError, UnicodeError):
+                raise ValueError(f"Cannot read mounted secret for {name}") from None
+            if not value or "\x00" in value or "\n" in value or "\r" in value:
+                raise ValueError(f"Mounted secret for {name} must contain one nonempty value")
+        if name in os.environ and os.environ[name] != value:
+            raise ValueError(f"Conflicting direct and mounted secret for {name}")
+        os.environ[name] = value
+        _SECRET_FILE_VALUES[key] = value
+
+
 def aws_environment():
     return os.getenv("STORAGE_PROVIDER", "minio").lower() == "aws"
 
 
 def storage_client():
+    load_secret_files()
     provider = os.getenv("STORAGE_PROVIDER", "minio").lower()
     if provider not in {"aws", "minio", "s3"}:
         raise ValueError("STORAGE_PROVIDER must be aws, minio, or s3")
     kwargs = {"region_name": os.getenv("STORAGE_REGION", os.getenv("AWS_REGION", "us-east-1"))}
-    # No endpoint or explicit credentials in AWS mode: boto3 resolves the ECS task
-    # role and refreshes temporary credentials via its standard credential chain.
+    # No endpoint or explicit credentials in AWS mode: boto3 resolves ECS task
+    # roles or EKS Pod Identity via its refreshable standard credential chain.
     if provider != "aws":
         kwargs.update(endpoint_url=os.getenv("STORAGE_ENDPOINT") or None,
                       aws_access_key_id=os.getenv("STORAGE_ACCESS_KEY") or None,
@@ -30,8 +65,11 @@ def storage_client():
 
 def database_parameters():
     """Separate fields let Secrets Manager inject passwords without URI escaping."""
+    load_secret_files()
     kwargs = {"connect_timeout": int(os.getenv("DATABASE_CONNECT_TIMEOUT", "5")),
               "application_name": "photoplatform-worker",
+              "keepalives": 1, "keepalives_idle": 15, "keepalives_interval": 5,
+              "keepalives_count": 3, "tcp_user_timeout": 15000,
               "options": "-c statement_timeout=" + str(int(os.getenv("DATABASE_STATEMENT_TIMEOUT_MS", "30000")))}
     if not os.getenv("DATABASE_URL"):
         kwargs.update(host=os.environ["DATABASE_HOST"], port=int(os.getenv("DATABASE_PORT", "5432")),
@@ -52,6 +90,7 @@ def database_parameters():
 
 
 def rabbit_parameters():
+    load_secret_files()
     url = os.getenv("RABBITMQ_URL")
     if url:
         params = pika.URLParameters(url)
@@ -70,6 +109,8 @@ def rabbit_parameters():
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         params.ssl_options = pika.SSLOptions(context, params.host)
     params.heartbeat = int(os.getenv("RABBITMQ_HEARTBEAT_SECONDS", "60"))
+    if not 5 <= params.heartbeat <= 60:
+        raise ValueError("RABBITMQ_HEARTBEAT_SECONDS must be between 5 and 60 for bounded outage detection")
     params.blocked_connection_timeout = 30
     params.socket_timeout = 5
     params.stack_timeout = 15

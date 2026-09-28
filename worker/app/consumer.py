@@ -14,7 +14,7 @@ import pika
 from prometheus_client import Counter, Gauge, start_http_server
 from .config import rabbit_parameters
 from .runtime import Worker
-from .health import mark_connected, mark_disconnected
+from .health import mark_alive, mark_stopped, mark_connected, mark_disconnected
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -49,6 +49,16 @@ class Consumer:
         self.futures = set()
         self.futures_lock = threading.Lock()
         self.connection = None
+        self.gc_thread = None
+
+    def garbage_loop(self):
+        interval = max(10, int(os.getenv("WORKER_GC_INTERVAL_SECONDS", "60")))
+        while not self.stop.wait(interval):
+            try:
+                self.worker.collect_garbage()
+            except Exception:
+                # The attempt registry remains due after a dependency failure.
+                log.warning("Attempt object cleanup unavailable; durable sweep will retry")
 
     def has_work(self):
         with self.futures_lock:
@@ -107,6 +117,7 @@ class Consumer:
         deadline = time.monotonic() + int(os.getenv("WORKER_SHUTDOWN_GRACE_SECONDS", "100"))
         self.cancel_pending()
         while self.has_work() and time.monotonic() < deadline:
+            mark_alive()
             if self.connection and self.connection.is_open:
                 try:
                     self.connection.process_data_events(time_limit=.5)
@@ -121,17 +132,23 @@ class Consumer:
     def run(self):
         attempt = 0
         mark_disconnected()
+        mark_alive()
+        self.gc_thread = threading.Thread(target=self.garbage_loop, name="attempt-gc", daemon=True)
+        self.gc_thread.start()
         try:
             while not self.stop.is_set():
+                mark_alive()
                 # A connection can drop while its job is running. Do not accumulate
                 # queued work across reconnects or exceed one active job.
                 while self.has_work() and not self.stop.wait(.2):
-                    pass
+                    mark_alive()
                 if self.stop.is_set():
                     break
                 try:
                     self.connection = pika.BlockingConnection(rabbit_parameters())
+                    mark_alive()
                     channel = self.connection.channel()
+                    mark_alive()
                     consumer_cancelled = threading.Event()
                     channel.add_on_cancel_callback(lambda _method: consumer_cancelled.set())
                     # RabbitMQ 4.3 / quorum queues reject global QoS. Each configured
@@ -144,15 +161,18 @@ class Consumer:
                     tags = []
                     for queue in queues:
                         channel.queue_declare(queue=queue, durable=True)
+                        mark_alive()
                         tags.append(channel.basic_consume(queue, on_message_callback=self.consume, auto_ack=False))
+                        mark_alive()
                     CONNECTED.set(1)
                     connected_at = time.monotonic()
                     while not self.stop.is_set():
+                        mark_alive()
                         self.connection.process_data_events(time_limit=1)
                         if not channel.is_open or not self.connection.is_open or consumer_cancelled.is_set():
                             raise pika.exceptions.AMQPConnectionError("Consumer subscription lost")
                         # Main-thread heartbeat stays fresh during long image work.
-                        # The ECS probe also checks a real bounded DB connection.
+                        # Readiness checks a bounded DB connection; liveness does not.
                         mark_connected()
                         if time.monotonic() - connected_at > 60:
                             attempt = 0
@@ -160,7 +180,9 @@ class Consumer:
                     # retains its tag until completion or connection close.
                     for tag in tags:
                         channel.basic_cancel(tag)
+                        mark_alive()
                 except (pika.exceptions.AMQPError, OSError):
+                    mark_alive()
                     RECONNECTS.inc()
                     log.warning("Broker unavailable; reconnecting with capped backoff")
                     CONNECTED.set(0)
@@ -171,9 +193,11 @@ class Consumer:
                         except pika.exceptions.AMQPError:
                             pass
                     self.connection = None
+                    mark_alive()
                     self.stop.wait(reconnect_delay(attempt))
                     attempt += 1
         finally:
+            self.stop.set()
             mark_disconnected()
             try:
                 drained = self.drain()
@@ -186,6 +210,11 @@ class Consumer:
                     pass
             CONNECTED.set(0)
             self.pool.shutdown(wait=drained, cancel_futures=True)
+            if self.gc_thread:
+                # Cleanup owns no message ACK. Its durable cursor survives abrupt
+                # process loss; it must not exhaust the workload's drain budget.
+                self.gc_thread.join(timeout=1)
+            mark_stopped()
             if not drained:
                 # ThreadPoolExecutor threads otherwise keep Python alive beyond ECS's
                 # stop timeout. Durable lease + outbox recover this unacknowledged job.

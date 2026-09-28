@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 from PIL import Image
 
 from app.imaging import InvalidImage
-from app.runtime import Worker
+from app.runtime import Worker, JobLease, LeaseLost, ObservedConnection
 
 
 class RuntimeTests(unittest.TestCase):
@@ -41,7 +41,9 @@ class RuntimeTests(unittest.TestCase):
         results = iter(rows)
         def execute(sql, params=None):
             cursor = MagicMock()
-            if sql.lstrip().startswith("SELECT") or "RETURNING" in sql:
+            if "INSERT INTO media_object_attempts" in sql:
+                cursor.fetchone.return_value = {"claim_token": self.job["claim_token"]}
+            elif sql.lstrip().startswith("SELECT") or "RETURNING" in sql:
                 cursor.fetchone.return_value = next(results)
             return cursor
         self.conn.execute.side_effect = execute
@@ -128,7 +130,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(len(self.statements()), 1)
 
     def test_delete_walks_all_pages_before_committing_deleted(self):
-        self.rows({"deleted_at": datetime.now(timezone.utc)})
+        self.rows({"deleted_at": datetime.now(timezone.utc)}, {"id": self.job["media_id"]})
         self.worker.s3.get_paginator.return_value.paginate.return_value = [
             {"Versions": [{"Key": "first", "VersionId": "v1"}, {"Key": "first", "VersionId": "v0"}]},
             {}, {"Versions": [{"Key": "second", "VersionId": "null"}],
@@ -196,13 +198,103 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse(any("UPDATE media_processing_jobs" in sql for sql, _ in self.statements()))
 
     def test_durable_failure_save_error_is_propagated_for_broker_redelivery(self):
-        self.rows(self.job, {"locked": True}, self.job, {"pg_advisory_unlock": True})
+        self.rows(self.job, {"locked": True}, self.job, {"id": self.job["id"]}, {"pg_advisory_unlock": True})
         self.worker.process = MagicMock(side_effect=OSError("storage outage"))
         self.worker.fail = MagicMock(side_effect=OSError("database outage"))
         with patch("app.runtime.connection", return_value=self.conn):
             with self.assertRaises(OSError):
                 self.worker.handle(self.job["id"])
         self.assertTrue(any("pg_advisory_unlock" in sql for sql, _ in self.statements()))
+
+    def test_session_loss_after_decode_prevents_all_storage_writes(self):
+        self.job["_lease"] = MagicMock()
+        self.job["_lease"].renew.side_effect = LeaseLost("session lost during image processing")
+        self.rows(self.image, self.session)
+        with self.assertRaises(LeaseLost):
+            self.worker.process(self.conn, self.job)
+        self.worker.s3.put_object.assert_not_called()
+        self.assert_no_variant_commit()
+
+    def test_session_loss_between_variants_stops_subsequent_writes(self):
+        self.job["_lease"] = MagicMock()
+        self.job["_lease"].renew.side_effect = [None, None, LeaseLost("database offline")]
+        self.rows(self.image, self.session)
+        with self.assertRaises(LeaseLost):
+            self.worker.process(self.conn, self.job)
+        self.assertEqual(self.worker.s3.put_object.call_count, 1)
+        self.assert_no_variant_commit()
+
+    def test_attempt_is_durably_registered_before_any_object_write(self):
+        self.rows(self.image, self.session, dict(self.image, deleted_at=datetime.now(timezone.utc)))
+        def verify_registry(**_):
+            self.assertTrue(any("INSERT INTO media_object_attempts" in sql for sql, _ in self.statements()))
+        self.worker.s3.put_object.side_effect = verify_registry
+        self.worker.process(self.conn, self.job)
+        self.assertEqual(self.worker.s3.put_object.call_count, 5)
+
+    def test_failed_attempt_registry_fence_prevents_storage_writes(self):
+        self.rows(self.image, self.session)
+        original = self.conn.execute.side_effect
+        def unclaimed(sql, params=None):
+            if "INSERT INTO media_object_attempts" in sql:
+                return MagicMock(**{"fetchone.return_value": None})
+            return original(sql, params)
+        self.conn.execute.side_effect = unclaimed
+        with self.assertRaises(LeaseLost):
+            self.worker.process(self.conn, self.job)
+        self.worker.s3.put_object.assert_not_called()
+
+    def test_expired_completion_cannot_report_success(self):
+        self.conn.execute.return_value.rowcount = 0
+        with self.assertRaises(LeaseLost):
+            self.worker.finish(self.conn, self.job)
+
+    def test_expired_failure_does_not_reset_outbox_or_mark_image_failed(self):
+        self.conn.execute.return_value.rowcount = 0
+        with self.assertRaises(LeaseLost):
+            self.worker.fail(self.conn, dict(self.job, attempt=3), OSError("offline"))
+        self.assertFalse(any("UPDATE media_outbox" in sql for sql, _ in self.statements()))
+        self.assertFalse(any("UPDATE image_assets" in sql for sql, _ in self.statements()))
+
+    def test_replaced_claim_fences_entire_metadata_transaction(self):
+        self.job["_lease"] = MagicMock()
+        self.rows(self.image, self.session, self.image, None)
+        with self.assertRaises(LeaseLost):
+            self.worker.process(self.conn, self.job)
+        self.assert_no_variant_commit()
+        self.job["_lease"].lost.set.assert_called_once()
+
+    def test_attempt_paths_cannot_overwrite_a_new_claims_objects(self):
+        keys = []
+        for claim in (uuid.uuid4(), uuid.uuid4()):
+            self.conn.reset_mock()
+            self.worker.s3.reset_mock()
+            self.rows(self.image, self.session, dict(self.image, deleted_at=datetime.now(timezone.utc)))
+            self.worker.process(self.conn, dict(self.job, claim_token=claim))
+            keys.append({c.kwargs["Key"] for c in self.worker.s3.put_object.call_args_list})
+        self.assertEqual(len(keys[0]), 5)
+        self.assertEqual(len(keys[1]), 5)
+        self.assertFalse(keys[0] & keys[1])
+        self.assertTrue(all(key.startswith("generate-cloud/media/17/") for batch in keys for key in batch))
+
+    def test_claim_loss_is_redelivered_without_failure_metadata_changes(self):
+        self.rows(self.job, {"locked": True}, self.job, {"pg_advisory_unlock": True})
+        self.worker.process = MagicMock(side_effect=LeaseLost("fenced"))
+        self.worker.fail = MagicMock()
+        with patch("app.runtime.connection", return_value=self.conn):
+            self.assertFalse(self.worker.handle(self.job["id"]))
+        self.worker.fail.assert_not_called()
+
+    def test_database_session_error_is_not_saved_on_a_replacement_connection(self):
+        import psycopg
+        self.rows(self.job, {"locked": True}, self.job, {"pg_advisory_unlock": True})
+        self.worker.process = MagicMock(side_effect=psycopg.OperationalError("connection lost"))
+        self.worker.fail = MagicMock()
+        with patch("app.runtime.connection", return_value=self.conn) as connect:
+            with self.assertRaises(psycopg.OperationalError):
+                self.worker.handle(self.job["id"])
+        connect.assert_called_once()
+        self.worker.fail.assert_not_called()
 
     def test_read_enforces_both_reported_and_actual_byte_limits(self):
         del self.worker.read
@@ -215,6 +307,90 @@ class RuntimeTests(unittest.TestCase):
                 with patch("app.runtime.MAX_BYTES", 10), self.assertRaises(InvalidImage):
                     self.worker.read("source")
                 body.__exit__.assert_called_once()
+
+
+class LeaseTests(unittest.TestCase):
+    def setUp(self):
+        self.job = {"id": uuid.uuid4(), "claim_token": uuid.uuid4()}
+        self.conn = MagicMock()
+
+    def test_task_longer_than_old_five_minute_lease_is_renewed_with_same_token(self):
+        now, expiry, renewals = 0, 300, []
+        def renew(sql, params):
+            nonlocal expiry
+            seconds, job_id, token = params
+            self.assertEqual((job_id, token), (self.job["id"], self.job["claim_token"]))
+            self.assertIn("status='RUNNING' AND lease_until>now()", sql)
+            self.assertLess(now, expiry)
+            expiry = now + seconds
+            renewals.append(now)
+            return MagicMock(**{"fetchone.return_value": {"id": job_id}})
+        self.conn.execute.side_effect = renew
+        lease = JobLease(self.conn, self.job, seconds=300, interval=30)
+        def tick(_):
+            nonlocal now
+            now += 30
+            return now > 360
+        lease.stop.wait = tick
+        lease._run()  # Virtual clock drives twelve renewals without a six-minute wait.
+        self.assertEqual(renewals, list(range(30, 361, 30)))
+        self.assertEqual(expiry, 660)
+        self.assertFalse(lease.lost.is_set())
+
+    def test_replaced_or_expired_token_can_never_be_revived(self):
+        self.conn.execute.return_value.fetchone.return_value = None
+        lease = JobLease(self.conn, self.job)
+        with self.assertRaises(LeaseLost):
+            lease.renew()
+        self.conn.execute.return_value.fetchone.return_value = {"id": self.job["id"]}
+        with self.assertRaises(LeaseLost):
+            lease.renew()
+        self.conn.execute.assert_called_once()
+
+    def test_session_disconnect_is_permanent_for_this_guard(self):
+        import psycopg
+        self.conn.execute.side_effect = psycopg.OperationalError("offline")
+        lease = JobLease(self.conn, self.job)
+        with self.assertRaises(LeaseLost):
+            lease.renew()
+        self.assertTrue(lease.lost.is_set())
+        self.conn.execute.side_effect = None
+        with self.assertRaises(LeaseLost):
+            lease.renew()
+        self.conn.execute.assert_called_once()
+
+    def test_backend_session_change_is_fenced_even_when_claim_sql_succeeds(self):
+        self.job["_session_pid"] = 123
+        self.conn.execute.return_value.fetchone.return_value = {"id": self.job["id"], "backend_pid": 456}
+        lease = JobLease(self.conn, self.job)
+        with self.assertRaises(LeaseLost):
+            lease.renew()
+        self.assertTrue(lease.lost.is_set())
+
+    def test_invalid_renewal_budget_is_rejected(self):
+        for seconds, interval in ((9, 1), (0, 1), (300, 0), (300, 101), (300, -1)):
+            with self.subTest(seconds=seconds, interval=interval), self.assertRaises(ValueError):
+                JobLease(self.conn, self.job, seconds=seconds, interval=interval)
+
+    def test_renewal_cannot_interleave_with_lifecycle_transaction(self):
+        import threading
+        entered, finished = threading.Event(), threading.Event()
+        raw = MagicMock()
+        raw.transaction.return_value = nullcontext()
+        observed = ObservedConnection(raw)
+        def renew():
+            entered.set()
+            observed.execute("renew")
+            finished.set()
+        with observed.transaction():
+            thread = threading.Thread(target=renew)
+            thread.start()
+            self.assertTrue(entered.wait(1))
+            self.assertFalse(finished.wait(.02))
+            raw.execute.assert_not_called()
+        thread.join(1)
+        self.assertTrue(finished.is_set())
+        raw.execute.assert_called_once_with("renew")
 
 
 if __name__ == "__main__":

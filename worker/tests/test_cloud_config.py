@@ -1,16 +1,51 @@
 """Cloud security boundaries and local compatibility without live AWS services."""
 import os
 import ssl
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
 import psycopg
 
-from app.config import database_parameters, rabbit_parameters, storage_client
+from app.config import database_parameters, rabbit_parameters, storage_client, load_secret_files
 from app.runtime import connection, fault_after_s3
 
 
 class CloudConfigTests(unittest.TestCase):
+    def test_mounted_values_load_once_and_rotation_requires_a_new_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "password"
+            path.write_text("first-secret\n")
+            with patch.dict(os.environ, {"DATABASE_PASSWORD_FILE": str(path)}, clear=True):
+                load_secret_files()
+                self.assertEqual(os.environ["DATABASE_PASSWORD"], "first-secret")
+                path.write_text("rotated-secret\n")
+                load_secret_files()
+                self.assertEqual(os.environ["DATABASE_PASSWORD"], "first-secret")
+                path.unlink()
+                load_secret_files()  # Application startup snapshot remains usable.
+                self.assertEqual(os.environ["DATABASE_PASSWORD"], "first-secret")
+
+    def test_missing_empty_and_conflicting_files_fail_without_revealing_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "token"
+            for contents, direct in ((None, None), ("\n", None), ("private-token\n", "different-private-token")):
+                with self.subTest(contents=contents):
+                    if contents is not None:
+                        path.write_text(contents)
+                    env = {"ENCODER_TOKEN_FILE": str(path)}
+                    if direct:
+                        env["ENCODER_TOKEN"] = direct
+                    with patch.dict(os.environ, env, clear=True), self.assertRaises(ValueError) as failure:
+                        load_secret_files()
+                    self.assertNotIn("private-token", str(failure.exception))
+
+    def test_certificate_file_is_not_interpreted_as_a_secret_value(self):
+        with patch.dict(os.environ, {"RABBITMQ_CA_FILE": "/certificate/is/a/path"}, clear=True):
+            load_secret_files()
+            self.assertNotIn("RABBITMQ_CA", os.environ)
+
     def test_aws_storage_uses_refreshable_default_credential_chain(self):
         with patch.dict(os.environ, {"STORAGE_PROVIDER": "aws", "STORAGE_ENDPOINT": "http://local:9000",
                                     "STORAGE_ACCESS_KEY": "do-not-pass", "STORAGE_SECRET_KEY": "do-not-pass"}, clear=True), \
