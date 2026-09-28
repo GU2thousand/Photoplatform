@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 import time
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -82,8 +84,8 @@ def preflight():
         raise ValueError("Invalid EKS cluster name")
     if required("EKS_CLUSTER_ARN") != f"arn:aws:eks:{region}:{account}:cluster/{cluster}":
         raise ValueError("EKS_CLUSTER_ARN must match expected account, region and name")
-    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,51}[a-z0-9])?", required("EKS_RELEASE")):
-        raise ValueError("Invalid Helm release name")
+    if required("EKS_RELEASE") != "photoplatform":
+        raise ValueError("EKS_RELEASE must be photoplatform to match pre-provisioned Pod Identity service accounts")
     for name, _, _ in enabled_components():
         repo = required(f"ECR_{name.upper()}_REPOSITORY")
         if not re.fullmatch(rf"{account}\.dkr\.ecr\.{re.escape(region)}\.amazonaws\.com/[a-z0-9][a-z0-9._/-]*", repo):
@@ -92,13 +94,23 @@ def preflight():
         shared.validate_https(required(name), name)
     for name in ("FRONTEND_BUCKET", "FRONTEND_DISTRIBUTION_ID"):
         required(name)
+    for name in ("S3_BUCKET", "STORAGE_PREFIX", "CLOUDFRONT_DOMAIN"):
+        required(name)
+    if required("API_URL").rstrip("/") != required("VITE_API_BASE_URL").rstrip("/") or required("CLOUD_FRONTEND_ORIGIN").rstrip("/") != required("FRONTEND_URL").rstrip("/"):
+        raise ValueError("Business acceptance origins must match the selected API and frontend release")
+    if len({required(name) for name in ("TEST_OWNER_TOKEN", "TEST_OTHER_TOKEN", "TEST_ADMIN_TOKEN")}) != 3:
+        raise ValueError("Release smoke requires three distinct pre-provisioned fixture tokens")
+    if environment == "dev" and (os.getenv("ALLOW_CLOUD_TEST_WRITES") != "1" or os.getenv("DISPOSABLE_ENVIRONMENT") != "true"):
+        raise ValueError("Dev release smoke must explicitly target a disposable environment")
+    if environment == "prod" and os.getenv("ALLOW_PRODUCTION_SMOKE") != "1":
+        raise ValueError("Production release smoke must be separately approved before mutations")
     overrides = json.loads(required("EKS_HELM_VALUES_JSON"))
     if not isinstance(overrides, dict):
         raise ValueError("EKS_HELM_VALUES_JSON must be a JSON object of non-secret chart configuration")
     forbidden = {"release", "environment", "runtimeMode", "migration", "aws"} & set(overrides)
     if forbidden:
         raise ValueError("Identity, migration and image fields are controlled by the release script")
-    if set(overrides.get("images", {})) - {"prometheus", "otel"}:
+    if set(overrides.get("images", {})) - {"prometheus", "otel", "kubeStateMetrics"}:
         raise ValueError("Only pinned external telemetry images may be provided in the configuration overlay")
     # Secret references belong in values; secret contents belong exclusively in Secrets Manager.
     def inspect(node):
@@ -145,6 +157,8 @@ def cluster_guard():
     cluster = aws("eks", "describe-cluster", "--name", required("EKS_CLUSTER_NAME"))["cluster"]
     if cluster["arn"] != required("EKS_CLUSTER_ARN") or cluster["status"] != "ACTIVE":
         raise ValueError("Selected EKS cluster must be the active expected ARN")
+    if not cluster["resourcesVpcConfig"].get("endpointPrivateAccess") or cluster["resourcesVpcConfig"].get("endpointPublicAccess"):
+        raise ValueError("Release requires a private-only EKS management endpoint")
     tags = cluster.get("tags", {})
     if tags.get("Project") != "photoplatform" or tags.get("Environment") != required("EKS_ENVIRONMENT"):
         raise ValueError("EKS cluster Project/Environment tags differ from selected boundary")
@@ -158,11 +172,30 @@ def cluster_guard():
         raise ValueError("Namespace labels do not authorize the selected application/environment")
     system = json.loads(kubectl("get", "namespace", "kube-system", "-o", "json"))
     evidence = {"cluster_arn": cluster["arn"], "cluster_version": cluster["version"],
+                "endpoint": cluster["endpoint"], "ca_sha256": hashlib.sha256(cluster["certificateAuthority"]["data"].encode()).hexdigest(),
                 "namespace": required("EKS_NAMESPACE"), "namespace_uid": namespace["metadata"]["uid"],
                 "kube_system_uid": system["metadata"]["uid"], "tags": tags,
                 "private_endpoint": cluster["resourcesVpcConfig"]["endpointPrivateAccess"]}
+    evidence["addons"] = []
+    for name in aws("eks", "list-addons", "--cluster-name", required("EKS_CLUSTER_NAME"))["addons"]:
+        addon = aws("eks", "describe-addon", "--cluster-name", required("EKS_CLUSTER_NAME"), "--addon-name", name)["addon"]
+        evidence["addons"].append({"name": name, "version": addon["addonVersion"], "status": addon["status"],
+                                   "configuration": json.loads(addon.get("configurationValues") or "{}") if name == "vpc-cni" else {}})
     record("cluster", evidence)
+    validate_addons(evidence["addons"])
     return evidence
+
+
+def validate_addons(addons):
+    if not {"vpc-cni", "coredns", "kube-proxy", "eks-pod-identity-agent"} <= {item["name"] for item in addons}:
+        raise ValueError("Pinned managed CNI/DNS/proxy/Pod Identity addons required before application release")
+    for item in addons:
+        if item["status"] != "ACTIVE":
+            raise ValueError("Every managed cluster addon must be ACTIVE before application release")
+        if item["name"] == "vpc-cni":
+            configuration = item["configuration"]
+            if configuration.get("enableNetworkPolicy") not in (True, "true") or configuration.get("env", {}).get("NETWORK_POLICY_ENFORCING_MODE") != "strict":
+                raise ValueError("VPC CNI requires enabled NetworkPolicy and strict enforcement before application release")
 
 
 def verify_repository(repo):
@@ -202,10 +235,20 @@ def build():
         repo = required(f"ECR_{name.upper()}_REPOSITORY")
         verify_repository(repo)
         metadata = RESULTS / (name + "-build.json")
-        run("docker", "buildx", "build", "--platform", "linux/amd64", "--push", "--provenance=mode=max",
-            "--sbom=true", "--metadata-file", str(metadata), "--file", dockerfile,
-            "--label", "org.opencontainers.image.revision=" + required("DEPLOY_SHA"),
-            "--tag", repo + ":" + tag, context, timeout=2400)
+        # A source archive excludes untracked/ignored files on a persistent runner.
+        # Every COPY therefore comes from the exact verified commit, not a dirty build context.
+        with tempfile.TemporaryDirectory(prefix="photoplatform-eks-build-") as directory:
+            archive = Path(directory) / "source.tar"
+            with archive.open("wb") as handle:
+                subprocess.run(["git", "archive", "--format=tar", required("DEPLOY_SHA"), context],
+                               stdout=handle, stderr=subprocess.PIPE, check=True, timeout=60)
+            archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+            with tarfile.open(archive) as source:
+                source.extractall(directory, filter="data")
+            run("docker", "buildx", "build", "--platform", "linux/amd64", "--push", "--provenance=mode=max",
+                "--sbom=true", "--metadata-file", str(metadata.resolve()), "--file", str(Path(directory) / dockerfile),
+                "--label", "org.opencontainers.image.revision=" + required("DEPLOY_SHA"),
+                "--tag", repo + ":" + tag, str(Path(directory) / context), timeout=2400)
         digest = json.loads(metadata.read_text()).get("containerimage.digest", "")
         if not DIGEST.fullmatch(digest):
             raise ValueError("Build did not produce a valid registry digest")
@@ -229,6 +272,7 @@ def build():
         manifest["images"][name] = image
         manifest["runnableDigests"][name] = leaves
         manifest["builds"][name] = {"tag": tag, "oci_revision": labels["org.opencontainers.image.revision"],
+                                    "source_archive_sha256": archive_hash,
                                     "manifest_sha256": hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()}
         record("images", manifest)
     verify_image_manifest(manifest)
@@ -304,6 +348,7 @@ def migrate():
     validate_migration_job(job, manifest["images"]["api"])
     name = job["metadata"]["name"]
     report = {"sha": required("DEPLOY_SHA"), "job": name, "status": "in_progress",
+              "values_sha256": hashlib.sha256(values.read_bytes()).hexdigest(),
               "github_run_id": required("GITHUB_RUN_ID"), "github_run_attempt": required("GITHUB_RUN_ATTEMPT")}
     record("migration", report)
     try:
@@ -384,7 +429,7 @@ def verify_workload(deployment, pods, image, leaves, sha):
             "pods": rows}
 
 
-def verify_ingress():
+def verify_ingress(expected_ips):
     host = urlparse(required("VITE_API_BASE_URL")).hostname
     rows = json.loads(kubectl("get", "ingresses", "-l", "app.kubernetes.io/instance=" + required("EKS_RELEASE"), "-o", "json"))["items"]
     selected = []
@@ -417,9 +462,41 @@ def verify_ingress():
     import socket
     def addresses(domain):
         return {item[4][0] for item in socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)}
-    if not addresses(host) & addresses(balance["DNSName"]):
+    if not addresses(host) <= addresses(balance["DNSName"]):
         raise ValueError("Public API DNS does not resolve to the released ALB")
-    return {"ingress_uid": ingress["metadata"]["uid"], "api_host": host, "alb_arn": arn, "alb_dns": balance["DNSName"], "controller_tags": tags}
+    groups = aws("elbv2", "describe-target-groups", "--load-balancer-arn", arn)["TargetGroups"]
+    selected_groups = [group for group in groups if group.get("TargetType") == "ip" and group.get("Port") == 8080 and group.get("HealthCheckPath") == "/readyz"]
+    if len(selected_groups) != 1:
+        raise ValueError("Released ALB API target group is not ready")
+    group = selected_groups[0]
+    targets = aws("elbv2", "describe-target-health", "--target-group-arn", group["TargetGroupArn"])["TargetHealthDescriptions"]
+    if any(target.get("TargetHealth", {}).get("State") == "healthy" and target["Target"].get("Port") != 8080 for target in targets):
+        raise ValueError("ALB has a healthy target outside the business API port")
+    healthy = {target["Target"]["Id"] for target in targets if target.get("TargetHealth", {}).get("State") == "healthy"}
+    if healthy != expected_ips:
+        raise ValueError("ALB healthy target set differs from released endpoint addresses")
+    return {"ingress_uid": ingress["metadata"]["uid"], "api_host": host, "alb_arn": arn, "alb_dns": balance["DNSName"], "controller_tags": tags,
+            "target_group_arn": group["TargetGroupArn"], "healthy_target_ips": sorted(healthy)}
+
+
+def wait_ingress(expected_ips, timeout=300):
+    deadline = time.monotonic() + timeout
+    transient = {"Released ALB is not active", "Ingress endpoint does not belong to the selected EKS ALB",
+                 "Public API DNS does not resolve to the released ALB", "Released ALB API target group is not ready",
+                 "ALB healthy target set differs from released endpoint addresses"}
+    while True:
+        try:
+            return verify_ingress(expected_ips)
+        except ValueError as exc:
+            if str(exc) not in transient or time.monotonic() >= deadline:
+                raise
+        except subprocess.CalledProcessError as exc:
+            if "LoadBalancerNotFound" not in (exc.stderr or "") or time.monotonic() >= deadline:
+                raise
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+        time.sleep(5)
 
 
 def rollout():
@@ -431,7 +508,9 @@ def rollout():
         raise ValueError("Successful migration of this exact revision required before Helm release")
     manifest = json.loads((RESULTS / "images.json").read_text())
     values = release_values(manifest)
-    report = {"sha": required("DEPLOY_SHA"), "status": "in_progress", "workloads": {}}
+    report = {"sha": required("DEPLOY_SHA"), "status": "in_progress", "workloads": {},
+              "values_sha256": hashlib.sha256(values.read_bytes()).hexdigest(),
+              "chart_source_sha": required("DEPLOY_SHA"), "helm_client": run("helm", "version", "--short").strip()}
     record("rollout", report)
     try:
         run("helm", "upgrade", "--install", required("EKS_RELEASE"), CHART, *helm_args(values),
@@ -456,13 +535,27 @@ def rollout():
         if ready_targets != expected_targets:
             raise ValueError("API endpoint set does not point exclusively to the released Pod UIDs")
         report["api_endpoint_pod_uids"] = sorted(ready_targets)
-        report["public_ingress"] = verify_ingress()
+        import ipaddress
+        expected_ips = {address for item in endpoints for endpoint in item.get("endpoints", [])
+                        if endpoint.get("conditions", {}).get("ready") is True for address in endpoint.get("addresses", [])
+                        if ipaddress.ip_address(address).version == 4}
+        if len(expected_ips) != len(expected_targets):
+            raise ValueError("Each released API Pod requires one IPv4 ALB target address")
+        report["api_endpoint_addresses"] = sorted(expected_ips)
+        report["public_ingress"] = wait_ingress(expected_ips)
         report["helm"] = json.loads(run("helm", "status", required("EKS_RELEASE"), "--namespace", required("EKS_NAMESPACE"),
                                          "--kubeconfig", str(RESULTS / "kubeconfig"), "--kube-context", required("EKS_CLUSTER_ARN"), "-o", "json"))["version"]
         readiness_url = required("VITE_API_BASE_URL").rstrip("/") + "/readyz"
         with urlopen(readiness_url, timeout=30) as response:
             if response.status != 200 or response.geturl() != readiness_url:
                 raise RuntimeError("Public ALB HTTPS readiness failed")
+            expose = json.loads(required("EKS_HELM_VALUES_JSON")).get("api", {}).get("exposeInstanceId", False)
+            if expose:
+                served_uid = response.headers.get("X-Photoplatform-Pod-Uid")
+                served_revision = response.headers.get("X-Photoplatform-Revision")
+                if served_uid not in expected_targets or served_revision != required("DEPLOY_SHA"):
+                    raise ValueError("Public API response did not come from a released Pod/revision")
+                report["public_api_pod_uid"] = served_uid
         report["public_api_readiness"] = "passed"
         report["status"] = "completed"
     except Exception as exc:
@@ -554,4 +647,9 @@ if __name__ == "__main__":
     commands = {"preflight": preflight, "build": build, "migrate": migrate, "rollout": rollout, "business": business, "frontend": frontend}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
         raise SystemExit("usage: eks_deploy.py preflight|build|migrate|rollout|business|frontend")
-    commands[sys.argv[1]]()
+    try:
+        commands[sys.argv[1]]()
+    except Exception as exc:
+        record("stage-failure", {"sha": os.getenv("DEPLOY_SHA"), "stage": sys.argv[1], "status": "failed",
+                                 "error_type": type(exc).__name__})
+        raise

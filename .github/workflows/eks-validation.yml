@@ -36,7 +36,7 @@ on:
       scenario:
         description: Operator scenario or dependency target (used only by its selected suite)
         type: choice
-        options: [rollout, rollback, migration-failure, iam-network, mq, db]
+        options: [rollout, rollback, migration-failure, iam, network, node-drain, mq, db]
         default: rollout
       restart_replica:
         description: For replica suite, explicitly delete guarded API Pod A and verify fresh-ticket reconnect
@@ -95,6 +95,20 @@ jobs:
       TEAM_A_TOKEN: ${{ secrets.EKS_TEAM_A_TOKEN }}
       TEAM_B_TOKEN: ${{ secrets.EKS_TEAM_B_TOKEN }}
       EKS_VALIDATION_ROLE_ARN: ${{ vars.EKS_VALIDATION_ROLE_ARN }}
+      ALLOW_EKS_DEPENDENCY_FAULTS: ${{ inputs.suite == 'dependency-outage' && '1' || '0' }}
+      EKS_NETWORK_POLICY_ENFORCEMENT_VERIFIED: ${{ vars.EKS_NETWORK_POLICY_ENFORCEMENT_VERIFIED }}
+      ALLOW_EKS_RELEASE_SCENARIOS: ${{ inputs.suite == 'operator-scenario' && '1' || '0' }}
+      EKS_RELEASE_SCENARIO_LOCK_ID: github-${{ github.run_id }}
+      EKS_EXPECTED_MEDIA_ROLE_ARN: ${{ vars.EKS_EXPECTED_MEDIA_ROLE_ARN }}
+      EKS_IAM_ALLOWED_S3_KEY: ${{ vars.EKS_IAM_ALLOWED_S3_KEY }}
+      EKS_IAM_DENIED_S3_KEY: ${{ vars.EKS_IAM_DENIED_S3_KEY }}
+      EKS_IAM_ADMIN_SECRET_ARN: ${{ vars.EKS_IAM_ADMIN_SECRET_ARN }}
+      EKS_RDS_INSTANCE_ID: ${{ vars.EKS_RDS_INSTANCE_ID }}
+      EKS_MQ_BROKER_ID: ${{ vars.EKS_MQ_BROKER_ID }}
+      EKS_ROLLBACK_REVISION: ${{ vars.EKS_ROLLBACK_REVISION }}
+      ALLOW_EKS_NODE_DRAIN: ${{ inputs.suite == 'operator-scenario' && inputs.scenario == 'node-drain' && '1' || '0' }}
+      EKS_NODE_NAME: ${{ vars.EKS_NODE_NAME }}
+      EKS_NODE_UID: ${{ vars.EKS_NODE_UID }}
     steps:
       - name: Require the successful canonical current-main release source
         uses: actions/github-script@v8
@@ -145,15 +159,45 @@ jobs:
           root = Path('work/eks-release-evidence')
           cluster = json.loads((root/'cluster.json').read_text())
           image = json.loads((root/'images.json').read_text())
+          migration = json.loads((root/'migration.json').read_text())
           if cluster['cluster_arn'] != os.environ['EKS_CLUSTER_ARN'] or cluster['namespace'] != os.environ['EKS_NAMESPACE'] or image['sha'] != os.environ['EXPECTED_DEPLOY_SHA']:
               raise SystemExit('Release evidence differs from the selected cluster/namespace/SHA')
           with open(os.environ['GITHUB_ENV'], 'a') as handle:
               handle.write('EKS_KUBE_SYSTEM_UID=' + cluster['kube_system_uid'] + '\n')
               handle.write('EKS_IMAGE_MANIFEST=' + str((root/'images.json').resolve()) + '\n')
               handle.write('KUBECONFIG=' + os.environ['KUBECONFIG'] + '\n')
+              handle.write('EKS_SOURCE_MIGRATION_JOB=' + migration['job'] + '\n')
+              handle.write('EKS_SOURCE_MIGRATION_UID=' + migration['job_uid'] + '\n')
           PY
+      - name: Validate pinned successful prior release for rollback rehearsal
+        if: inputs.suite == 'operator-scenario' && inputs.scenario == 'rollback'
+        uses: actions/github-script@v8
+        env:
+          ROLLBACK_RUN_ID: ${{ vars.EKS_ROLLBACK_SOURCE_RUN_ID }}
+          ROLLBACK_SHA: ${{ vars.EKS_ROLLBACK_SHA }}
+        with:
+          script: |
+            const repo = context.repo;
+            const sha = process.env.ROLLBACK_SHA;
+            const runId = process.env.ROLLBACK_RUN_ID;
+            if (!/^[a-f0-9]{40}$/.test(sha || '') || !/^[1-9][0-9]*$/.test(runId || '')) throw new Error('Pinned prior release SHA/run required');
+            const workflow = await github.rest.actions.getWorkflow({...repo, workflow_id: 'deploy-eks.yml'});
+            const prior = await github.rest.actions.getWorkflowRun({...repo, run_id: Number(runId)});
+            if (prior.data.head_sha !== sha || prior.data.workflow_id !== workflow.data.id || prior.data.conclusion !== 'success' ||
+                prior.data.head_branch !== 'main' || prior.data.event !== 'workflow_dispatch' ||
+                prior.data.head_repository?.full_name !== `${repo.owner}/${repo.repo}`) throw new Error('Successful canonical prior EKS release required');
+      - uses: actions/download-artifact@v4
+        if: inputs.suite == 'operator-scenario' && inputs.scenario == 'rollback'
+        with:
+          name: eks-release-${{ inputs.environment }}-${{ vars.EKS_ROLLBACK_SHA }}-${{ vars.EKS_ROLLBACK_SOURCE_RUN_ID }}
+          path: work/eks-rollback-evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ vars.EKS_ROLLBACK_SOURCE_RUN_ID }}
       - name: Install real AWS harness dependencies
-        run: python3 -m pip install -r benchmarks/requirements-cloud.txt
+        run: |
+          python3 -m venv --clear work/eks-validation-env
+          work/eks-validation-env/bin/python -m pip install -r benchmarks/requirements-cloud.txt
+          echo "$PWD/work/eks-validation-env/bin" >> "$GITHUB_PATH"
       - name: Execute full business suite with explicit incomplete EKS matrix
         if: inputs.suite == 'business'
         run: python3 scripts/eks_acceptance.py --output benchmarks/results/eks-acceptance.json
@@ -164,6 +208,51 @@ jobs:
         if: inputs.suite == 'single-pod-recovery'
         run: |
           python3 scripts/eks_failure.py --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --output benchmarks/results/eks-worker-recovery.json
+      - name: Kill one verified worker process and prove durable retry
+        if: inputs.suite == 'abrupt-worker-recovery'
+        run: |
+          python3 scripts/eks_failure.py --fault-mode sigkill --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --minimum-job-age-seconds 310 --output benchmarks/results/eks-worker-sigkill.json
+      - name: Prove ALB distribution, per-Pod JWT/tickets and cross-Pod WebSocket relay
+        if: inputs.suite == 'replicas'
+        env:
+          RESTART_REPLICA: ${{ inputs.restart_replica }}
+        run: |
+          if [ "$RESTART_REPLICA" = "true" ]; then
+            python3 scripts/eks_replica_acceptance.py --restart-pod-a --output benchmarks/results/eks-replicas.json
+          else
+            python3 scripts/eks_replica_acceptance.py --output benchmarks/results/eks-replicas.json
+          fi
+      - name: Isolate one worker dependency and prove readiness/liveness recovery
+        if: inputs.suite == 'dependency-outage'
+        run: |
+          case "$OPERATOR_SCENARIO" in
+            mq) dependency=mq ;;
+            db) dependency=database ;;
+            *) echo 'Choose mq or db for dependency-outage'; exit 1 ;;
+          esac
+          python3 scripts/eks_dependency_faults.py --dependency "$dependency" --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --fault-seconds 360 --output benchmarks/results/eks-dependency-outage.json
+      - name: Execute one scoped operator rehearsal with restoration evidence
+        if: inputs.suite == 'operator-scenario'
+        run: |
+          case "$OPERATOR_SCENARIO" in
+            iam)
+              python3 scripts/eks_scenarios.py --scenario iam --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --output benchmarks/results/eks-iam.json ;;
+            network)
+              python3 scripts/eks_scenarios.py --scenario network --output benchmarks/results/eks-network.json ;;
+            node-drain)
+              if [ -n "$RECOVERY_POD_NAME$RECOVERY_POD_UID$RECOVERY_UPLOAD_ID$RECOVERY_JOB_ID" ]; then
+                python3 scripts/eks_node_drain.py --node-name "$EKS_NODE_NAME" --node-uid "$EKS_NODE_UID" --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --minimum-job-age-seconds 310 --output benchmarks/results/eks-node-drain.json
+              else
+                python3 scripts/eks_node_drain.py --node-name "$EKS_NODE_NAME" --node-uid "$EKS_NODE_UID" --output benchmarks/results/eks-node-drain.json
+              fi ;;
+            rollout)
+              python3 scripts/eks_release_scenarios.py --scenario rollout --output benchmarks/results/eks-rollout-rehearsal.json ;;
+            migration-failure)
+              python3 scripts/eks_release_scenarios.py --scenario migration-failure --migration-job-name "$EKS_SOURCE_MIGRATION_JOB" --migration-job-uid "$EKS_SOURCE_MIGRATION_UID" --output benchmarks/results/eks-migration-failure.json ;;
+            rollback)
+              python3 scripts/eks_release_scenarios.py --scenario rollback --rollback-revision "$EKS_ROLLBACK_REVISION" --previous-image-manifest work/eks-rollback-evidence/images.json --output benchmarks/results/eks-rollback-rehearsal.json ;;
+            *) echo 'Choose a supported operator scenario'; exit 1 ;;
+          esac
       - name: Preserve complete and failed samples
         if: always()
         uses: actions/upload-artifact@v4

@@ -110,6 +110,7 @@ jobs:
         run: python3 scripts/deploy/eks_deploy.py preflight
       - name: Require configured private-cluster runner toolchain
         run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 12), "Python 3.12+ required for safe source archive extraction"'
           command -v aws
           command -v kubectl
           command -v helm
@@ -139,7 +140,10 @@ jobs:
       - name: Release Helm and prove Pod image IDs, revision and endpoint targets
         run: python3 scripts/deploy/eks_deploy.py rollout
       - name: Install real AWS business acceptance dependencies
-        run: python3 -m pip install -r benchmarks/requirements-cloud.txt
+        run: |
+          python3 -m venv --clear work/eks-release-env
+          work/eks-release-env/bin/python -m pip install -r benchmarks/requirements-cloud.txt
+          echo "$PWD/work/eks-release-env/bin" >> "$GITHUB_PATH"
       - name: Verify uploads and private authorization through real AWS services
         run: python3 scripts/deploy/eks_deploy.py business
       - name: Publish frontend after migration, rollout and business checks

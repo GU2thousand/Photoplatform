@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -22,9 +23,13 @@ class EKSReleaseSafety(unittest.TestCase):
                 "EKS_CLUSTER_NAME": "photos-" + mode,
                 "EKS_CLUSTER_ARN": "arn:aws:eks:us-east-1:123456789012:cluster/photos-" + mode,
                 "EKS_NAMESPACE": "photoplatform-" + mode, "EKS_ENVIRONMENT": mode,
-                "EKS_RELEASE": "photos", "EKS_HELM_VALUES_JSON": "{}",
+                "EKS_RELEASE": "photoplatform", "EKS_HELM_VALUES_JSON": "{}",
                 "ECR_API_REPOSITORY": registry + "/api", "ECR_WORKER_REPOSITORY": registry + "/worker",
                 "VITE_API_BASE_URL": "https://api.example.test", "FRONTEND_URL": "https://app.example.test",
+                "API_URL": "https://api.example.test", "CLOUD_FRONTEND_ORIGIN": "https://app.example.test",
+                "S3_BUCKET": "photos-media", "STORAGE_PREFIX": "photos", "CLOUDFRONT_DOMAIN": "media.example.test",
+                "TEST_OWNER_TOKEN": "owner-fixture", "TEST_OTHER_TOKEN": "other-fixture", "TEST_ADMIN_TOKEN": "admin-fixture",
+                "ALLOW_CLOUD_TEST_WRITES": "1", "DISPOSABLE_ENVIRONMENT": "true",
                 "FRONTEND_BUCKET": "photos-frontend", "FRONTEND_DISTRIBUTION_ID": "ABC",
                 "GITHUB_RUN_ID": "456", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_TOKEN": "test",
                 "GITHUB_REPOSITORY": "GU2thousand/Photoplatform"}
@@ -37,7 +42,7 @@ class EKSReleaseSafety(unittest.TestCase):
                 "runnableDigests": {"api": ["sha256:" + "d" * 64], "worker": ["sha256:" + "e" * 64]}}
 
     def test_preflight_rejects_wrong_account_namespace_and_plain_secrets(self):
-        for changes in ({"EKS_NAMESPACE": "default"}, {"EKS_CLUSTER_ARN": "arn:aws:eks:us-east-1:999999999999:cluster/photos-dev"},
+        for changes in ({"EKS_NAMESPACE": "default"}, {"EKS_RELEASE": "other"}, {"EKS_CLUSTER_ARN": "arn:aws:eks:us-east-1:999999999999:cluster/photos-dev"},
                         {"AWS_ROLE_ARN": "arn:aws:iam::999999999999:role/deploy"},
                         {"EKS_HELM_VALUES_JSON": '{"secrets":{"api":{"password":"unsafe"}}}'},
                         {"EKS_HELM_VALUES_JSON": '{"images":{"api":{"repository":"unapproved"}}}'}):
@@ -50,6 +55,9 @@ class EKSReleaseSafety(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "separate approved"):
                 eks.preflight()
             os.environ["EKS_PRODUCTION_CUTOVER_APPROVED"] = "1"
+            with self.assertRaisesRegex(ValueError, "smoke must be separately approved"):
+                eks.preflight()
+            os.environ["ALLOW_PRODUCTION_SMOKE"] = "1"
             eks.preflight()
 
     def test_source_gate_refuses_new_main_or_old_successful_run(self):
@@ -132,6 +140,33 @@ class EKSReleaseSafety(unittest.TestCase):
         safe = eks.safe_logs(logs)
         self.assertNotIn("topsecret", safe)
         self.assertNotIn("token=abc", safe)
+
+    def test_release_refuses_bootstrap_cni_or_missing_pod_identity(self):
+        addons = [{"name": name, "status": "ACTIVE", "configuration": {}}
+                  for name in ("vpc-cni", "coredns", "kube-proxy", "eks-pod-identity-agent")]
+        addons[0]["configuration"] = {"enableNetworkPolicy": True, "env": {"NETWORK_POLICY_ENFORCING_MODE": "strict"}}
+        eks.validate_addons(addons)
+        for change in ("standard", "inactive", "agent"):
+            current = copy.deepcopy(addons)
+            if change == "standard":
+                current[0]["configuration"]["env"]["NETWORK_POLICY_ENFORCING_MODE"] = "standard"
+            elif change == "inactive":
+                current[0]["status"] = "UPDATING"
+            else:
+                current.pop()
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                eks.validate_addons(current)
+
+    def test_ingress_waits_for_controller_but_never_retries_authorization_or_scope_errors(self):
+        with patch.object(eks, "verify_ingress", side_effect=[ValueError("Released ALB is not active"), {"healthy": True}]) as verify, patch.object(eks.time, "sleep"):
+            self.assertEqual(eks.wait_ingress({"10.0.1.3"}), {"healthy": True})
+            self.assertEqual(verify.call_count, 2)
+        for failure in (ValueError("API ALB differs from the selected account/region"),
+                        subprocess.CalledProcessError(255, ["aws"], stderr="AccessDenied")):
+            with self.subTest(failure=type(failure).__name__), patch.object(eks, "verify_ingress", side_effect=failure), patch.object(eks.time, "sleep") as sleep:
+                with self.assertRaises(type(failure)):
+                    eks.wait_ingress({"10.0.1.3"})
+                sleep.assert_not_called()
 
 
 if __name__ == "__main__":
