@@ -42,8 +42,15 @@ jobs:
           echo '/tmp/audit-tools/node_modules/.bin' >> "$GITHUB_PATH"
           mkdir -p output/playwright
           python -c "from PIL import Image; Image.new('RGB',(640,480),'orange').save('output/playwright/fixture.png')"
+      - name: Build production frontend, API, workers and real CLIP image once
+        run: docker compose --profile search build
+      - name: Verify real ML image cache ownership and retained-cache upgrade
+        run: |
+          python scripts/model_cache_smoke.py --image photo-cloud-runtime-encoder \
+            --output output/playwright/model-cache-filesystem.json \
+            2>&1 | tee output/playwright/model-cache-filesystem.log
       - name: Boot production frontend, API, PostgreSQL, object store, broker and real CLIP services
-        run: docker compose --profile search up --build --detach --wait --wait-timeout 600
+        run: docker compose --profile search up --no-build --detach --wait --wait-timeout 600
       - name: Verify upload, access control and deletion over real HTTP
         run: python scripts/integration_test.py 2>&1 | tee output/playwright/integration.log
       - name: Verify real CLIP embeddings and semantic/hybrid access filters
