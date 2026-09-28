@@ -1,0 +1,174 @@
+name: EKS Dev Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Existing protected disposable environment
+        type: choice
+        options: [eks-dev]
+        default: eks-dev
+      suite:
+        description: Evidence scope (business does not certify the complete EKS matrix)
+        type: choice
+        options: [business, scaling, single-pod-recovery, abrupt-worker-recovery, replicas, dependency-outage, operator-scenario]
+        default: business
+      release_run_id:
+        description: Successful Deploy EKS run containing images and cluster evidence
+        required: true
+        type: string
+      expected_sha:
+        description: Full 40-character deployment SHA (must still be current main)
+        required: true
+        type: string
+      pod_name:
+        description: For recovery only, exact media worker Pod name
+        type: string
+      pod_uid:
+        description: For recovery only, exact Pod UID precondition
+        type: string
+      upload_id:
+        description: For recovery only, existing PROCESSING upload
+        type: string
+      job_id:
+        description: For recovery only, durable RUNNING job claimed by selected Pod
+        type: string
+      scenario:
+        description: Operator scenario or dependency target (used only by its selected suite)
+        type: choice
+        options: [rollout, rollback, migration-failure, iam-network, mq, db]
+        default: rollout
+      restart_replica:
+        description: For replica suite, explicitly delete guarded API Pod A and verify fresh-ticket reconnect
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: photoplatform-eks-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ fromJSON(vars.EKS_RUNNER_LABELS || '["self-hosted","linux","eks-deployer"]') }}
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      EXPECTED_DEPLOY_SHA: ${{ inputs.expected_sha }}
+      EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      EKS_CLUSTER_ARN: ${{ vars.EKS_CLUSTER_ARN }}
+      EKS_NAMESPACE: ${{ vars.EKS_NAMESPACE }}
+      EKS_RELEASE: ${{ vars.EKS_RELEASE }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      STORAGE_PREFIX: ${{ vars.STORAGE_PREFIX }}
+      API_URL: ${{ vars.API_BASE_URL }}
+      CLOUDFRONT_DOMAIN: ${{ vars.CLOUDFRONT_DOMAIN }}
+      CLOUD_FRONTEND_ORIGIN: ${{ vars.FRONTEND_URL }}
+      ALLOW_CLOUD_TEST_WRITES: "1"
+      DISPOSABLE_ENVIRONMENT: "true"
+      ALLOW_EKS_SCALING: ${{ inputs.suite == 'scaling' && '1' || '0' }}
+      ALLOW_EKS_FAILURE_INJECTION: ${{ (inputs.suite == 'single-pod-recovery' || inputs.suite == 'abrupt-worker-recovery' || (inputs.suite == 'replicas' && inputs.restart_replica)) && '1' || '0' }}
+      TEST_OWNER_TOKEN: ${{ secrets.TEST_OWNER_TOKEN }}
+      TEST_OTHER_TOKEN: ${{ secrets.TEST_OTHER_TOKEN }}
+      TEST_ADMIN_TOKEN: ${{ secrets.TEST_ADMIN_TOKEN }}
+      BENCHMARK_DATABASE_URL: ${{ secrets.BENCHMARK_DATABASE_URL }}
+      RABBITMQ_MANAGEMENT_URL: ${{ vars.RABBITMQ_MANAGEMENT_URL }}
+      RABBITMQ_USERNAME: ${{ secrets.RABBITMQ_READONLY_USERNAME }}
+      RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_READONLY_PASSWORD }}
+      RABBITMQ_VHOST: ${{ vars.RABBITMQ_VHOST }}
+      RABBITMQ_PROCESS_QUEUE: ${{ vars.RABBITMQ_PROCESS_QUEUE }}
+      RECOVERY_POD_NAME: ${{ inputs.pod_name }}
+      RECOVERY_POD_UID: ${{ inputs.pod_uid }}
+      RECOVERY_UPLOAD_ID: ${{ inputs.upload_id }}
+      RECOVERY_JOB_ID: ${{ inputs.job_id }}
+      OPERATOR_SCENARIO: ${{ inputs.scenario }}
+      TEAM_ID: ${{ vars.EKS_TEST_TEAM_ID }}
+      TEAM_A_TOKEN: ${{ secrets.EKS_TEAM_A_TOKEN }}
+      TEAM_B_TOKEN: ${{ secrets.EKS_TEAM_B_TOKEN }}
+      EKS_VALIDATION_ROLE_ARN: ${{ vars.EKS_VALIDATION_ROLE_ARN }}
+    steps:
+      - name: Require the successful canonical current-main release source
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const repo = context.repo;
+            const sha = context.payload.inputs.expected_sha;
+            const runId = context.payload.inputs.release_run_id;
+            if (`${repo.owner}/${repo.repo}` !== 'GU2thousand/Photoplatform' || !/^[a-f0-9]{40}$/.test(sha) || !/^[1-9][0-9]*$/.test(runId)) {
+              throw new Error('Canonical repository, full SHA and release run ID required');
+            }
+            const main = await github.rest.repos.getBranch({...repo, branch: 'main'});
+            const releaseWorkflow = await github.rest.actions.getWorkflow({...repo, workflow_id: 'deploy-eks.yml'});
+            const release = await github.rest.actions.getWorkflowRun({...repo, run_id: Number(runId)});
+            if (main.data.commit.sha !== sha || context.sha !== sha || release.data.head_sha !== sha ||
+                release.data.workflow_id !== releaseWorkflow.data.id || release.data.head_branch !== 'main' ||
+                release.data.event !== 'workflow_dispatch' || release.data.conclusion !== 'success' ||
+                release.data.head_repository?.full_name !== `${repo.owner}/${repo.repo}`) {
+              throw new Error('Successful exact current-main EKS release required');
+            }
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: eks-release-${{ inputs.environment }}-${{ inputs.expected_sha }}-${{ inputs.release_run_id }}
+          path: work/eks-release-evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release_run_id }}
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.EKS_VALIDATION_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
+          role-session-name: photoplatform-eks-validation-${{ github.run_id }}
+      - name: Configure isolated kubeconfig and pinned release identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work
+          export KUBECONFIG="$PWD/work/eks-validation-kubeconfig"
+          aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION" --alias "$EKS_CLUSTER_ARN" --kubeconfig "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path('work/eks-release-evidence')
+          cluster = json.loads((root/'cluster.json').read_text())
+          image = json.loads((root/'images.json').read_text())
+          if cluster['cluster_arn'] != os.environ['EKS_CLUSTER_ARN'] or cluster['namespace'] != os.environ['EKS_NAMESPACE'] or image['sha'] != os.environ['EXPECTED_DEPLOY_SHA']:
+              raise SystemExit('Release evidence differs from the selected cluster/namespace/SHA')
+          with open(os.environ['GITHUB_ENV'], 'a') as handle:
+              handle.write('EKS_KUBE_SYSTEM_UID=' + cluster['kube_system_uid'] + '\n')
+              handle.write('EKS_IMAGE_MANIFEST=' + str((root/'images.json').resolve()) + '\n')
+              handle.write('KUBECONFIG=' + os.environ['KUBECONFIG'] + '\n')
+          PY
+      - name: Install real AWS harness dependencies
+        run: python3 -m pip install -r benchmarks/requirements-cloud.txt
+      - name: Execute full business suite with explicit incomplete EKS matrix
+        if: inputs.suite == 'business'
+        run: python3 scripts/eks_acceptance.py --output benchmarks/results/eks-acceptance.json
+      - name: Execute fixed replica worker capacity cohorts and restore original count
+        if: inputs.suite == 'scaling'
+        run: python3 benchmarks/eks_worker_scaling.py --counts 1 2 4 --images 30 --output benchmarks/results/eks-worker-scaling.json
+      - name: Delete one guarded Pod UID and verify durable recovery
+        if: inputs.suite == 'single-pod-recovery'
+        run: |
+          python3 scripts/eks_failure.py --pod-name "$RECOVERY_POD_NAME" --pod-uid "$RECOVERY_POD_UID" --upload-id "$RECOVERY_UPLOAD_ID" --job-id "$RECOVERY_JOB_ID" --output benchmarks/results/eks-worker-recovery.json
+      - name: Preserve complete and failed samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eks-validation-${{ inputs.suite }}-${{ inputs.expected_sha }}-${{ github.run_id }}
+          path: benchmarks/results/eks-*.json
+          if-no-files-found: warn
+          retention-days: 30
