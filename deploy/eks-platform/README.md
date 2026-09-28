@@ -41,8 +41,14 @@ Flags can also come from `EKS_CLUSTER_NAME`, `AWS_REGION`, `EKS_VPC_ID`,
 `EXPECTED_AWS_ACCOUNT_ID`, and `EKS_ENVIRONMENT` (`dev` or `prod`). There are no
 implicit account/VPC defaults.
 
-After the infrastructure plan has been reviewed/applied by the platform owner,
-rerun the same command with `--execute`. This explicitly:
+The initial reviewed Terraform apply must use
+`network_policy_enforcing_mode = "standard"`. CoreDNS must become ACTIVE before
+the Kubernetes bootstrap can install its system policy; starting in strict mode
+before that policy exists can block CoreDNS traffic and prevent this sequence
+from completing. NetworkPolicy support remains enabled in this initial mode.
+
+After that infrastructure apply, rerun the same command with `--execute`.
+This explicitly:
 
 1. Applies the kube-system connectivity NetworkPolicy, namespace with restricted
    Pod Security Admission at v1.36, and the LBC ServiceAccount.
@@ -55,6 +61,13 @@ rerun the same command with `--execute`. This explicitly:
    checks the expected Deployment/DaemonSet rollouts.
 5. Writes `bootstrap.json` with target identity, versions, results and workload
    statuses. Failure records remain even when a Helm component rolls back.
+
+After bootstrap has installed the kube-system policy and the platform controller
+rollouts have passed, the platform owner must make a **second reviewed Terraform
+change** setting `network_policy_enforcing_mode = "strict"`. Verify the VPC CNI
+configuration and CoreDNS/controller readiness after this change. Application
+release is permitted only after strict mode is active; standard mode is an
+initial platform bring-up stage, not the application release configuration.
 
 Use `--environment prod --cluster photoplatform-eks-prod` only for the separately
 provisioned production cluster. This script supports the commercial AWS partition;
@@ -95,11 +108,12 @@ path does not support Fargate nodes. metrics-server keeps kubelet certificate
 verification enabled; fix network/certificate prerequisites instead of adding
 `--kubelet-insecure-tls`.
 
-VPC CNI strict policy mode initially denies regular Pod traffic until policy
-enforcement is installed. `kube-system-network-policy.yaml` explicitly allows
-system namespace traffic for CoreDNS, controller webhooks, AWS APIs, CSI and
-kubelet communication. Only trusted platform identities can change workloads or
-policies there. Namespace application NetworkPolicies are supplied by the app
+VPC CNI strict policy mode denies ordinary new Pod traffic until the matching
+policy is enforced. Install `kube-system-network-policy.yaml` during the initial
+standard-mode bootstrap before enabling strict mode. This policy explicitly
+allows system namespace traffic for CoreDNS, controller webhooks, AWS APIs, CSI
+and kubelet communication. Only trusted platform identities can change workloads
+or policies there. Namespace application NetworkPolicies are supplied by the app
 chart and do not acquire these system permissions.
 
 ## Release permissions
