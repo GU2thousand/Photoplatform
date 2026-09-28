@@ -97,7 +97,7 @@ resource "aws_iam_role_policy" "github_deploy" {
     { Effect = "Allow", Action = ["eks:DescribeCluster", "eks:ListAddons"], Resource = local.cluster_arn },
     { Effect = "Allow", Action = ["eks:DescribeAddon"], Resource = "arn:${local.partition}:eks:${var.region}:${var.expected_account_id}:addon/${local.name}/*" },
     # ELBv2 describes have no resource-level support; constrain read-only discovery to this region.
-    { Effect = "Allow", Action = ["elasticloadbalancing:DescribeLoadBalancers", "elasticloadbalancing:DescribeTags"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.region } } },
+    { Effect = "Allow", Action = ["elasticloadbalancing:DescribeLoadBalancers", "elasticloadbalancing:DescribeTags", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeTargetHealth"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.region } } },
     { Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*" },
     { Effect = "Allow", Action = ["ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:DescribeImages", "ecr:DescribeRepositories"], Resource = tolist(var.ecr_repository_arns) },
     { Effect = "Allow", Action = ["s3:ListBucket", "s3:GetBucketTagging", "s3:GetBucketVersioning", "s3:GetBucketPublicAccessBlock", "s3:GetEncryptionConfiguration", "s3:GetLifecycleConfiguration"], Resource = var.media_bucket_arn },
