@@ -35,6 +35,19 @@ jobs:
           cache-dependency-path: |
             worker/requirements.txt
             scripts/kubernetes/requirements.txt
+      - name: Record planned acceptance before installing tools
+        run: |
+          mkdir -p artifacts/kubernetes
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          Path('artifacts/kubernetes/bootstrap.json').write_text(json.dumps({
+              'sha': os.environ['GITHUB_SHA'], 'github_run_id': os.environ['GITHUB_RUN_ID'],
+              'scope': 'disposable kind; not AWS EKS acceptance',
+              'runtime_started': False,
+              'note': 'If manifest.json is absent, acceptance did not start and must not be reported as passed.'
+          }, indent=2) + '\n')
+          PY
       - name: Install locked test dependencies
         run: python -m pip install -r worker/requirements.txt -r scripts/kubernetes/requirements.txt
       - name: Install pinned kind, kubectl and Helm with official checksums
