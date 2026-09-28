@@ -1,0 +1,73 @@
+name: Kubernetes Runtime Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kind-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  kind-runtime:
+    name: Disposable kind runtime (not AWS EKS acceptance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      ALLOW_KIND_FAULTS: '1'
+      PYTHONUNBUFFERED: '1'
+      KIND_VERSION: v0.33.0
+      KUBECTL_VERSION: v1.34.11
+      HELM_VERSION: v3.17.3
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            worker/requirements.txt
+            scripts/kubernetes/requirements.txt
+      - name: Install locked test dependencies
+        run: python -m pip install -r worker/requirements.txt -r scripts/kubernetes/requirements.txt
+      - name: Install pinned kind, kubectl and Helm with official checksums
+        run: |
+          set -euo pipefail
+          task_bin="$RUNNER_TEMP/photoplatform-kind-bin"
+          mkdir -p "$task_bin"
+          cd "$task_bin"
+          curl --fail --location --proto '=https' --tlsv1.2 "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64" -o kind
+          curl --fail --location --proto '=https' --tlsv1.2 "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64.sha256sum" -o kind.sha256sum
+          sed 's/kind-linux-amd64/kind/' kind.sha256sum | sha256sum --check -
+          curl --fail --location --proto '=https' --tlsv1.2 "https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl" -o kubectl
+          curl --fail --location --proto '=https' --tlsv1.2 "https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl.sha256" -o kubectl.sha256
+          printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum --check -
+          curl --fail --location --proto '=https' --tlsv1.2 "https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz" -o helm.tar.gz
+          curl --fail --location --proto '=https' --tlsv1.2 "https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz.sha256sum" -o helm.sha256sum
+          sed "s/helm-$HELM_VERSION-linux-amd64.tar.gz/helm.tar.gz/" helm.sha256sum | sha256sum --check -
+          tar -xzf helm.tar.gz linux-amd64/helm
+          mv linux-amd64/helm helm
+          chmod +x kind kubectl helm
+          echo "$task_bin" >> "$GITHUB_PATH"
+      - name: Verify migration gates and destructive-test boundaries
+        run: python -m unittest discover -s scripts/kubernetes/tests -v
+      - name: Run real multi-pod uploads, permissions, migration and fault acceptance
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/kubernetes
+          python scripts/kubernetes/kind_runtime.py --evidence-dir artifacts/kubernetes 2>&1 | tee artifacts/kubernetes/runtime.log
+      - name: Retain all success, failure and incomplete runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/kubernetes/
+          if-no-files-found: error
+          retention-days: 14
