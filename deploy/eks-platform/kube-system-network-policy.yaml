@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: photoplatform-platform-connectivity
+  namespace: kube-system
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - {}
+  egress:
+    - {}
+# AWS VPC CNI strict policy mode denies ordinary new Pod traffic until a policy
+# is applied. kube-system is a trusted platform namespace and needs DNS, kubelet,
+# AWS endpoint, control-plane webhook, and CSI connectivity. Application release
+# identities cannot read secrets or create/modify workloads or policies here.
