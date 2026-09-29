@@ -1,5 +1,6 @@
 """Release safety: exact source, bounded migration, immutable images and live Pod identity."""
 import copy
+from contextlib import contextmanager
 import importlib.util
 import io
 import json
@@ -117,6 +118,86 @@ class EKSReleaseSafety(unittest.TestCase):
             pods = [live, live] if change == "surplus" else [live]
             with self.subTest(change=change), self.assertRaises(ValueError):
                 eks.verify_workload(current, pods, image, ["sha256:" + "d" * 64], "a" * 40)
+
+    @contextmanager
+    def release_fixture(self, collector=True, defect=None):
+        """Run the release proof against synthetic cluster snapshots, without AWS or Helm."""
+        env = self.environment()
+        manifest = self.manifest()
+        if collector:
+            env["EKS_HELM_VALUES_JSON"] = '{"queueCollector":{"enabled":true}}'
+            env["ECR_COLLECTOR_REPOSITORY"] = env["ECR_API_REPOSITORY"].rsplit("/", 1)[0] + "/collector"
+            manifest["images"]["collector"] = env["ECR_COLLECTOR_REPOSITORY"] + "@sha256:" + "f" * 64
+            manifest["runnableDigests"]["collector"] = ["sha256:" + "1" * 64]
+
+        def cluster_snapshot(*args):
+            resource = args[1]
+            if resource == "endpointslices":
+                return json.dumps({"items": [{"endpoints": [{"targetRef": {"uid": "pod-api-uid"},
+                                    "conditions": {"ready": True}, "addresses": ["10.0.1.23"]}]}]})
+            component = args[3].split("app.kubernetes.io/component=", 1)[1]
+            image_component = {"api": "api", "media-worker": "worker", "queue-collector": "collector"}[component]
+            deployment, pod, _ = self.workload()
+            pod = copy.deepcopy(pod)
+            deployment["metadata"].update(name="photos-" + component, uid="deployment-" + component)
+            pod["metadata"].update(name="pod-" + component, uid="pod-" + component + "-uid")
+            pod["spec"]["containers"][0]["image"] = manifest["images"][image_component]
+            pod["status"]["containerStatuses"][0]["imageID"] = "containerd://" + manifest["runnableDigests"][image_component][0]
+            if component == "queue-collector":
+                if defect == "revision":
+                    pod["metadata"]["annotations"]["photoplatform.io/revision"] = "b" * 40
+                elif defect == "digest":
+                    pod["status"]["containerStatuses"][0]["imageID"] = "containerd://sha256:" + "9" * 64
+                elif defect == "unready":
+                    pod["status"]["conditions"][0]["status"] = "False"
+                elif defect == "missing" and resource == "deployments":
+                    return '{"items":[]}'
+            return json.dumps({"items": [deployment if resource == "deployments" else pod]})
+
+        response = io.BytesIO()
+        response.status = 200
+        response.geturl = lambda: env["VITE_API_BASE_URL"] + "/readyz"
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, env, clear=True), \
+                patch.object(eks, "RESULTS", Path(directory)), patch.object(eks, "verify_source"), \
+                patch.object(eks, "cluster_guard"), patch.object(eks, "kubectl", side_effect=cluster_snapshot) as command, \
+                patch.object(eks, "run", side_effect=["v3.test", "", '{"version":4}']), \
+                patch.object(eks, "wait_ingress", return_value={"healthy_target_ips": ["10.0.1.23"]}) as ingress, \
+                patch.object(eks, "urlopen", return_value=response) as public_api:
+            root = Path(directory)
+            (root / "images.json").write_text(json.dumps(manifest))
+            (root / "migration.json").write_text(json.dumps({"status": "completed", "sha": env["DEPLOY_SHA"],
+                "github_run_id": env["GITHUB_RUN_ID"], "github_run_attempt": env["GITHUB_RUN_ATTEMPT"]}))
+            yield root, command, ingress, public_api
+
+    def test_release_proves_enabled_collector_live_image_and_revision(self):
+        with self.release_fixture() as (root, _, _, _):
+            eks.rollout()
+            report = json.loads((root / "rollout.json").read_text())
+            self.assertEqual(report["status"], "completed")
+            collector = report["workloads"]["queue-collector"]
+            self.assertEqual(collector["deployment_uid"], "deployment-queue-collector")
+            self.assertEqual(collector["pods"][0]["uid"], "pod-queue-collector-uid")
+            self.assertEqual(collector["pods"][0]["image_id"], "containerd://sha256:" + "1" * 64)
+
+    def test_collector_release_failure_stops_before_public_api_checks(self):
+        for defect, message in (("revision", "revision is stale"), ("digest", "imageID differs"),
+                                ("unready", "not Ready"), ("missing", "Exactly one matching Deployment")):
+            with self.subTest(defect=defect), self.release_fixture(defect=defect) as (root, _, ingress, public_api):
+                with self.assertRaisesRegex(ValueError, message):
+                    eks.rollout()
+                report = json.loads((root / "rollout.json").read_text())
+                self.assertEqual(report["status"], "failed")
+                self.assertNotIn("public_api_readiness", report)
+                ingress.assert_not_called()
+                public_api.assert_not_called()
+
+    def test_disabled_collector_does_not_require_or_query_collector(self):
+        with self.release_fixture(collector=False) as (root, command, _, _):
+            eks.rollout()
+            report = json.loads((root / "rollout.json").read_text())
+            self.assertEqual(report["status"], "completed")
+            self.assertEqual(set(report["workloads"]), {"api", "media-worker"})
+            self.assertFalse(any("queue-collector" in str(call.args) for call in command.call_args_list))
 
     def test_migration_contract_and_failed_migration_prevent_helm(self):
         job = {"kind": "Job", "metadata": {"namespace": "photoplatform-dev", "name": "photos-migrate-456-1"},
