@@ -261,3 +261,6 @@ jobs:
           path: benchmarks/results/eks-*.json
           if-no-files-found: warn
           retention-days: 30
+      - name: Remove this validation run's kubeconfig
+        if: always()
+        run: rm -f -- work/eks-validation-kubeconfig

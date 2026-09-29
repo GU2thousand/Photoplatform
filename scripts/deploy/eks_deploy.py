@@ -519,6 +519,8 @@ def rollout():
         components = [("api", "api"), ("media-worker", "worker")]
         if "encoder" in manifest["images"]:
             components += [("encoder", "encoder"), ("embedding-worker", "encoder")]
+        if "collector" in manifest["images"]:
+            components.append(("queue-collector", "collector"))
         for component, image_component in components:
             selector = "app.kubernetes.io/instance=" + required("EKS_RELEASE") + ",app.kubernetes.io/component=" + component
             deployments = json.loads(kubectl("get", "deployments", "-l", selector, "-o", "json"))["items"]

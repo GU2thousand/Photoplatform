@@ -115,7 +115,24 @@ jobs:
           command -v kubectl
           command -v helm
           command -v docker
-          docker buildx version
+      - name: Isolate this release's Docker authentication
+        id: runner-auth
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import json, os, tempfile
+          from pathlib import Path
+          root = Path(tempfile.mkdtemp(prefix=f"photoplatform-eks-docker-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}-", dir=os.environ['RUNNER_TEMP']))
+          registry = os.environ['ECR_API_REPOSITORY'].split('/', 1)[0]
+          # Nonempty auths prevent Docker from choosing a shared native credential helper.
+          config = root / 'config.json'
+          config.write_text(json.dumps({'auths': {registry: {}}}) + '\n')
+          config.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as handle:
+              handle.write(f'DOCKER_CONFIG={root}\nDOCKER_AUTH_CONFIG=\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as handle:
+              handle.write(f'docker_config={root}\n')
+          PY
       - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -123,6 +140,8 @@ jobs:
           allowed-account-ids: ${{ vars.AWS_ACCOUNT_ID }}
           role-session-name: photoplatform-eks-${{ github.run_id }}
       - uses: docker/setup-buildx-action@v3
+      - name: Verify buildx in the isolated Docker configuration
+        run: docker buildx version
       - name: Build fresh immutable images and prove pushed OCI revision
         run: python3 scripts/deploy/eks_deploy.py build
       - uses: actions/setup-node@v7.0.0
@@ -156,3 +175,13 @@ jobs:
           path: deployment-results/*.json
           if-no-files-found: warn
           retention-days: 30
+      - name: Remove this release's local registry authentication and kubeconfig
+        if: always()
+        env:
+          RELEASE_DOCKER_CONFIG: ${{ steps.runner-auth.outputs.docker_config }}
+        run: |
+          if [ -n "$RELEASE_DOCKER_CONFIG" ]; then
+            # Keep buildx metadata until setup-buildx-action completes its post cleanup.
+            rm -f -- "$RELEASE_DOCKER_CONFIG/config.json"
+          fi
+          rm -f -- deployment-results/kubeconfig
