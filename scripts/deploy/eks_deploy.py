@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -42,7 +43,8 @@ def record(name, value):
 
 
 def aws(*args):
-    return json.loads(run("aws", *args, "--output", "json", "--no-cli-pager") or "{}")
+    return json.loads(run("aws", *args, "--region", required("AWS_REGION"),
+                          "--output", "json", "--no-cli-pager") or "{}")
 
 
 def kubectl(*args, input=None):
@@ -62,16 +64,55 @@ def enabled_components():
     return components
 
 
-def preflight():
+def identity_configuration():
     account, region = required("EXPECTED_AWS_ACCOUNT_ID"), required("AWS_REGION")
-    if not re.fullmatch(r"\d{12}", account) or not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-\d", region):
+    if not re.fullmatch(r"[0-9]{12}", account) or not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-[0-9]", region):
         raise ValueError("Expected AWS account and region must be explicitly selected")
+    role = required("AWS_ROLE_ARN")
+    prefix = f"arn:aws:iam::{account}:role/"
+    resource = role.removeprefix(prefix)
+    path, separator, name = resource.rpartition("/")
+    if not separator:
+        name = resource
+    if (not role.startswith(prefix) or not re.fullmatch(r"[A-Za-z0-9+=,.@_-]{1,64}", name)
+            or separator and (not path or len(path) > 510 or not re.fullmatch(r"[\x21-\x7e]+", path))):
+        raise ValueError("AWS_ROLE_ARN must be a concrete IAM role in the expected account")
+    return account, region, role
+
+
+def verify_identity():
+    """Read-only A0 check, also repeated before any EKS release mutation."""
+    evidence = {"kind": "aws-eks-identity-preflight", "status": "failed",
+                "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+                "scope": "Caller account and assumed-role name only; IAM path/permissions and other A0/A1/A2 gates remain unverified"}
+    try:
+        account, region, role = identity_configuration()
+        evidence.update(account=account, region=region, configured_role_arn=role,
+                        expected_role_name=role.rsplit("/", 1)[1])
+        identity = aws("sts", "get-caller-identity")
+        evidence["caller_account"] = identity.get("Account")
+        evidence["caller_arn"] = identity.get("Arn")
+        if identity.get("Account") != account:
+            raise ValueError("AWS caller account differs from selected release account")
+        # STS role sessions omit the IAM path. Role names are unique within an account.
+        expected = rf"arn:aws:sts::{account}:assumed-role/{re.escape(role.rsplit('/', 1)[1])}/[A-Za-z0-9+=,.@_-]+"
+        if not re.fullmatch(expected, identity.get("Arn", "")):
+            raise ValueError("AWS caller must use the assumed-role name selected by the configured AWS_ROLE_ARN")
+        evidence["status"] = "passed"
+    except Exception as exc:
+        evidence["error_type"] = type(exc).__name__
+        raise
+    finally:
+        record("aws-identity", evidence)
+    return evidence
+
+
+def preflight():
+    account, region, _ = identity_configuration()
     if not SHA.fullmatch(required("DEPLOY_SHA")):
         raise ValueError("DEPLOY_SHA must be the full successful current-main Verify SHA")
     if not re.fullmatch(r"[1-9]\d*", required("VERIFY_RUN_ID")):
         raise ValueError("VERIFY_RUN_ID required for exact source provenance")
-    if not re.fullmatch(rf"arn:aws:iam::{account}:role/[A-Za-z0-9+=,.@_/-]+", required("AWS_ROLE_ARN")):
-        raise ValueError("AWS_ROLE_ARN differs from expected account")
     environment = required("EKS_ENVIRONMENT")
     if environment not in {"dev", "prod"}:
         raise ValueError("EKS_ENVIRONMENT must be dev or prod")
@@ -151,9 +192,7 @@ def verify_source():
 
 
 def cluster_guard():
-    identity = aws("sts", "get-caller-identity")
-    if identity["Account"] != required("EXPECTED_AWS_ACCOUNT_ID"):
-        raise ValueError("AWS caller account differs from selected release account")
+    verify_identity()
     cluster = aws("eks", "describe-cluster", "--name", required("EKS_CLUSTER_NAME"))["cluster"]
     if cluster["arn"] != required("EKS_CLUSTER_ARN") or cluster["status"] != "ACTIVE":
         raise ValueError("Selected EKS cluster must be the active expected ARN")
@@ -646,9 +685,9 @@ def business():
 
 
 if __name__ == "__main__":
-    commands = {"preflight": preflight, "build": build, "migrate": migrate, "rollout": rollout, "business": business, "frontend": frontend}
+    commands = {"identity": verify_identity, "preflight": preflight, "build": build, "migrate": migrate, "rollout": rollout, "business": business, "frontend": frontend}
     if len(sys.argv) != 2 or sys.argv[1] not in commands:
-        raise SystemExit("usage: eks_deploy.py preflight|build|migrate|rollout|business|frontend")
+        raise SystemExit("usage: eks_deploy.py identity|preflight|build|migrate|rollout|business|frontend")
     try:
         commands[sys.argv[1]]()
     except Exception as exc:

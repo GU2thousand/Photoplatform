@@ -8,7 +8,7 @@ This guide describes the implemented pipeline and the configuration required to 
 
 ## Local services and configuration
 
-The default Compose stack starts PostgreSQL 16 with pgvector, MinIO, RabbitMQ, Spring Boot, one Python media worker, and the Vue frontend. The `search` profile adds a text encoder and a separate embedding worker. The media worker is deliberately independent of the large Torch/CLIP image.
+The default Compose stack starts PostgreSQL 16 with pgvector, PGSTY SILO (a MinIO-compatible S3 service), RabbitMQ, Spring Boot, one Python media worker, and the Vue frontend. SILO preserves the MinIO S3 API and `MINIO_*` configuration used by the local stack; the exact image version and digest are pinned in `compose.yaml`. The `search` profile adds a text encoder and a separate embedding worker. The media worker is deliberately independent of the large Torch/CLIP image.
 
 ```bash
 docker compose up -d --build
@@ -29,7 +29,7 @@ The application defaults to `MEDIA_PIPELINE_ENABLED=false`; Compose and the prod
 | `STORAGE_ENDPOINT` | Internal S3 endpoint; empty for AWS SDK default | Same reachable endpoint | Embedding worker only |
 | `STORAGE_PUBLIC_ENDPOINT` | Public HTTPS endpoint for signed browser URLs; empty for AWS SDK default | Not used | Not used |
 | `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY` | Secret credentials | Secret credentials | Embedding worker only |
-| `STORAGE_PATH_STYLE_ACCESS` | `false` on ordinary AWS S3, `true` in local MinIO | Must match provider | Embedding worker only |
+| `STORAGE_PATH_STYLE_ACCESS` | `false` on ordinary AWS S3, `true` in local SILO | Must match provider | Embedding worker only |
 | `RABBITMQ_HOST/PORT/USER/PASSWORD` | Broker connection | Not used | Not used |
 | `SPRING_RABBITMQ_VIRTUAL_HOST`, `SPRING_RABBITMQ_SSL_ENABLED` | Managed-broker vhost and TLS | Not used | Not used |
 | `RABBITMQ_URL` | Not used | `amqp://` locally; `amqps://` in managed TLS deployment | Embedding worker only |

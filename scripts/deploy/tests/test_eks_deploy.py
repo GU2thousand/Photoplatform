@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +42,101 @@ class EKSReleaseSafety(unittest.TestCase):
                 "images": {"api": env["ECR_API_REPOSITORY"] + "@sha256:" + "b" * 64,
                            "worker": env["ECR_WORKER_REPOSITORY"] + "@sha256:" + "c" * 64},
                 "runnableDigests": {"api": ["sha256:" + "d" * 64], "worker": ["sha256:" + "e" * 64]}}
+
+    def test_wrong_caller_stops_release_before_cluster_or_kubeconfig_access(self):
+        account = "123456789012"
+        for caller in (f"arn:aws:iam::{account}:root", f"arn:aws:iam::{account}:user/deploy",
+                       f"arn:aws:sts::{account}:assumed-role/admin/run",
+                       f"arn:aws:sts::{account}:assumed-role/deploy-extra/run",
+                       f"arn:aws:sts::{account}:assumed-role/deploy/run/extra",
+                       "arn:aws:sts::999999999999:assumed-role/deploy/run", ""):
+            with self.subTest(caller=caller), patch.dict(os.environ, self.environment(), clear=True), \
+                    patch.object(eks, "record") as record, \
+                    patch.object(eks, "aws", return_value={"Account": account, "Arn": caller}) as aws, \
+                    patch.object(eks, "run") as run, patch.object(eks, "kubectl") as kubectl:
+                with self.assertRaisesRegex(ValueError, "configured AWS_ROLE_ARN"):
+                    eks.cluster_guard()
+                aws.assert_called_once_with("sts", "get-caller-identity")
+                run.assert_not_called()
+                kubectl.assert_not_called()
+                self.assertEqual(record.call_args.args[1]["status"], "failed")
+
+    def test_identity_uses_pathless_sts_role_session_and_fixed_region(self):
+        env = {key: self.environment()[key] for key in ("EXPECTED_AWS_ACCOUNT_ID", "AWS_REGION", "AWS_ROLE_ARN")}
+        env["AWS_ROLE_ARN"] = "arn:aws:iam::123456789012:role/platform/deploy+ci.test"
+        env["AWS_DEFAULT_REGION"] = "us-west-2"
+        caller = {"Account": "123456789012", "Arn": "arn:aws:sts::123456789012:assumed-role/deploy+ci.test/GitHub-456"}
+        with patch.dict(os.environ, env, clear=True), patch.object(eks, "run", return_value=json.dumps(caller)) as run, \
+                patch.object(eks, "record"):
+            evidence = eks.verify_identity()
+            self.assertEqual(evidence["status"], "passed")
+            self.assertEqual(evidence["configured_role_arn"], env["AWS_ROLE_ARN"])
+            run.assert_called_once_with("aws", "sts", "get-caller-identity", "--region", "us-east-1",
+                                        "--output", "json", "--no-cli-pager")
+
+    def test_caller_account_field_mismatch_fails_before_cluster_access(self):
+        caller = {"Account": "999999999999", "Arn": "arn:aws:sts::999999999999:assumed-role/deploy/run"}
+        with patch.dict(os.environ, self.environment(), clear=True), patch.object(eks, "record") as record, \
+                patch.object(eks, "aws", return_value=caller) as aws, patch.object(eks, "run") as run:
+            with self.assertRaisesRegex(ValueError, "caller account differs"):
+                eks.cluster_guard()
+            aws.assert_called_once_with("sts", "get-caller-identity")
+            run.assert_not_called()
+            self.assertEqual(record.call_args.args[1]["status"], "failed")
+
+    def test_identity_invalid_target_never_calls_aws(self):
+        for changes in ({"EXPECTED_AWS_ACCOUNT_ID": ""}, {"AWS_REGION": ""}, {"AWS_ROLE_ARN": ""},
+                        {"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/deploy/"},
+                        {"AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/" + "a" * 65},
+                        {"EXPECTED_AWS_ACCOUNT_ID": "１２３４５６７８９０１２"},
+                        {"AWS_ROLE_ARN": "arn:aws:iam::999999999999:role/deploy"}):
+            with self.subTest(changes=changes), patch.dict(os.environ, self.environment() | changes, clear=True), \
+                    patch.object(eks, "aws") as aws, patch.object(eks, "record") as record:
+                with self.assertRaises(ValueError):
+                    eks.verify_identity()
+                aws.assert_not_called()
+                self.assertEqual(record.call_args.args[1]["status"], "failed")
+
+    def test_invalid_identity_configuration_replaces_stale_passed_evidence(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(eks, "RESULTS", Path(directory)), \
+                patch.dict(os.environ, {}, clear=True), patch.object(eks, "aws") as aws:
+            stale = Path(directory) / "aws-identity.json"
+            stale.write_text('{"status":"passed","caller_arn":"old"}')
+            with self.assertRaises(ValueError):
+                eks.verify_identity()
+            report = json.loads(stale.read_text())
+            self.assertEqual(report["status"], "failed")
+            self.assertNotIn("caller_arn", report)
+            aws.assert_not_called()
+
+    def test_identity_cli_is_read_only_and_preserves_failure_without_secret_output(self):
+        env = {key: self.environment()[key] for key in ("EXPECTED_AWS_ACCOUNT_ID", "AWS_REGION", "AWS_ROLE_ARN")}
+        env["AWS_SECRET_ACCESS_KEY"] = "never-record-this-credential"
+        script = Path(eks.__file__).resolve()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_aws = root / "aws"
+            fake_aws.write_text("#!" + sys.executable + "\nimport json,os,sys\n"
+                "assert sys.argv[1:] == ['sts','get-caller-identity','--region','us-east-1','--output','json','--no-cli-pager']\n"
+                "from pathlib import Path\nPath('aws-command.json').write_text(json.dumps(sys.argv[1:]))\n"
+                "if os.environ.get('FAKE_AWS_ERROR'):\n sys.stderr.write(os.environ['FAKE_AWS_ERROR']); sys.exit(255)\n"
+                "print(os.environ['IDENTITY_RESPONSE'])\n")
+            fake_aws.chmod(0o755)
+            for mode in ("valid", "wrong-role", "credentials-error"):
+                caller = "deploy" if mode == "valid" else "admin"
+                current = env | {"PATH": str(root), "IDENTITY_RESPONSE": json.dumps({"Account": "123456789012",
+                    "Arn": f"arn:aws:sts::123456789012:assumed-role/{caller}/run"})}
+                if mode == "credentials-error":
+                    current["FAKE_AWS_ERROR"] = "never-record-this-credential"
+                with self.subTest(mode=mode):
+                    result = subprocess.run([sys.executable, str(script), "identity"], cwd=root,
+                                            env=current, text=True, capture_output=True, timeout=15)
+                    self.assertEqual(result.returncode == 0, mode == "valid")
+                    report = json.loads((root / "deployment-results/aws-identity.json").read_text())
+                    self.assertEqual(report["status"], "passed" if mode == "valid" else "failed")
+                    self.assertNotIn("never-record-this-credential", json.dumps(report) + result.stdout + result.stderr)
+                    self.assertEqual(set(json.loads((root / "aws-command.json").read_text())[:2]),
+                                     {"sts", "get-caller-identity"})
 
     def test_preflight_rejects_wrong_account_namespace_and_plain_secrets(self):
         for changes in ({"EKS_NAMESPACE": "default"}, {"EKS_RELEASE": "other"}, {"EKS_CLUSTER_ARN": "arn:aws:eks:us-east-1:999999999999:cluster/photos-dev"},
